@@ -44,11 +44,13 @@ import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
+import org.apache.maven.project.MavenProjectHelper;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.IOUtil;
 import org.eclipse.sisu.Description;
@@ -56,7 +58,7 @@ import org.eclipse.sisu.Description;
 /**
  * Generates the dependencies properties file
  */
-@Mojo(threadSafe = true, name = "generate-plugin", defaultPhase = LifecyclePhase.PACKAGE, requiresDependencyResolution = ResolutionScope.RUNTIME)
+@Mojo(threadSafe = true, name = "generate-plugin", requiresProject = true, defaultPhase = LifecyclePhase.PACKAGE, requiresDependencyResolution = ResolutionScope.RUNTIME, requiresDependencyCollection = ResolutionScope.RUNTIME)
 @Description("Generates the dependencies for plugin generation")
 public class GeneratePluginMojo extends AbstractMojo {
 
@@ -108,6 +110,15 @@ public class GeneratePluginMojo extends AbstractMojo {
 	 */
 	@Parameter(defaultValue = "true", property = "plugin-generator.skip-poms")
 	private boolean skipPoms = true;
+
+	/**
+	 * Skip generating for POM types
+	 */
+	@Parameter(defaultValue = "true", property = "plugin-generator.attach")
+	private boolean attach = true;
+
+	@Component
+	private MavenProjectHelper projectHelper;
 
 	@SuppressWarnings("unchecked")
 	public void execute() throws MojoExecutionException, MojoFailureException {
@@ -348,6 +359,11 @@ public class GeneratePluginMojo extends AbstractMojo {
 					getLog().info("Copying archive to local store " + storeTarget.getAbsolutePath());
 
 					FileUtils.copyFile(zipfile, storeTarget);
+					
+					if(attach) {
+						getLog().info("Attaching artifact as extension-archive zip");
+						projectHelper.attachArtifact(project, "zip", "extension-archive", storeTarget);
+					}
 				} finally {
 					lock.release();
 				}
