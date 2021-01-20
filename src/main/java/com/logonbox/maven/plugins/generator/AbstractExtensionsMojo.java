@@ -8,8 +8,10 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -46,6 +48,8 @@ import org.codehaus.plexus.util.StringUtils;
  * zips in a specific diretory. Based on {@link GetMojo}.
  */
 public abstract class AbstractExtensionsMojo extends AbstractMojo {
+	protected static final String EXTENSION_ARCHIVE = "extension-archive";
+
 	private static final Pattern ALT_REPO_SYNTAX_PATTERN = Pattern.compile("(.+)::(.*)::(.+)");
 
 	@Parameter(defaultValue = "${session}", required = true, readonly = true)
@@ -117,8 +121,20 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	 */
 	@Parameter(property = "transitive", defaultValue = "true")
 	protected boolean transitive = true;
+	
+	protected Set<String> artifactsDone = new HashSet<>();
 
-	protected abstract void handleResult(ArtifactResult result)
+	private void handleResult(ArtifactResult result)
+			throws MojoExecutionException, DependencyResolverException, ArtifactResolverException {
+		String id = toCoords(result.getArtifact());
+		if(artifactsDone.contains(id))
+			return;
+		else
+			artifactsDone.add(id);
+		doHandleResult(result);
+	}
+
+	protected abstract void doHandleResult(ArtifactResult result)
 			throws MojoExecutionException, DependencyResolverException, ArtifactResolverException;
 
 	protected void doCoordinate() throws MojoFailureException, MojoExecutionException, IllegalArgumentException,
@@ -157,7 +173,7 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 				 * If the coordinate is for an extension zip, then we only we transitive
 				 * dependencies that also have an extension zip
 				 */
-				if ("extension-archive".equals(coordinate.getClassifier())) {
+				if (EXTENSION_ARCHIVE.equals(coordinate.getClassifier())) {
 					getLog().debug("Resolving " + toCoords(result.getArtifact()) + " with transitive dependencies");
 					try {
 						handleResult(artifactResolver.resolveArtifact(buildingRequest,
@@ -255,7 +271,7 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 		artifactCoordinate.setGroupId(art.getGroupId());
 		artifactCoordinate.setArtifactId(art.getArtifactId());
 		artifactCoordinate.setVersion(art.getVersion());
-		artifactCoordinate.setClassifier("extension-archive");
+		artifactCoordinate.setClassifier(EXTENSION_ARCHIVE);
 		artifactCoordinate.setExtension(artifactHandler.getExtension());
 		return artifactCoordinate;
 	}

@@ -11,6 +11,7 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.shared.transfer.artifact.resolve.ArtifactResolverException;
 import org.apache.maven.shared.transfer.artifact.resolve.ArtifactResult;
@@ -20,7 +21,7 @@ import org.apache.maven.shared.transfer.dependencies.resolve.DependencyResolverE
  * Resolves and downloads all of a projects extensions and place the resulting
  * zips in a specific diretory. Based on {@link GetMojo}.
  */
-@Mojo(name = "project-extensions", requiresProject = false, threadSafe = true)
+@Mojo(name = "project-extensions", requiresProject = true, threadSafe = true, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME)
 public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 
 	/**
@@ -28,6 +29,13 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 	 */
 	@Parameter(required = true, readonly = true, property = "project")
 	protected MavenProject project;
+
+	@Parameter(defaultValue = "${project.build.directory}/extension-store", property = "output", required = true)
+	protected File output;
+
+	{
+		transitive = false;
+	}
 
 	@Override
 	public void execute() throws MojoExecutionException, MojoFailureException {
@@ -39,27 +47,21 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 		Set<Artifact> artifacts = project.getArtifacts();
 		for (Artifact artifact : artifacts) {
 			getLog().info("Getting " + artifact);
-			if (artifact != null) {
-				coordinate.setGroupId(artifact.getGroupId());
-				coordinate.setArtifactId(artifact.getArtifactId());
-				coordinate.setVersion(artifact.getVersion());
-				if (artifact.getType() != null) {
-					coordinate.setType(artifact.getType());
-				}
-				if (artifact.getType() != null) {
-					coordinate.setClassifier(artifact.getType());
-				}
-			}
+			coordinate.setGroupId(artifact.getGroupId());
+			coordinate.setArtifactId(artifact.getArtifactId());
+			coordinate.setVersion(artifact.getVersion());
+			coordinate.setType("zip");
+			coordinate.setClassifier(EXTENSION_ARCHIVE);
 
 			try {
 				doCoordinate();
 			} catch (MojoFailureException | DependencyResolverException | ArtifactResolverException e) {
-				throw new MojoExecutionException("Failed to process an artifact.", e);
+				getLog().debug("Failed to process an artifact, assuming it's not an extension.", e);
 			}
 		}
 	}
 
-	protected void handleResult(ArtifactResult result) throws MojoExecutionException {
+	protected void doHandleResult(ArtifactResult result) throws MojoExecutionException {
 		File file = result.getArtifact().getFile();
 		if (file == null || !file.exists()) {
 			getLog().warn("Artifact " + result.getArtifact().getArtifactId()
@@ -69,9 +71,16 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 
 		Path extensionZip = file.toPath();
 		try {
-			Path target = checkDir(
-					output.toPath().resolve(result.getArtifact().getVersion()).resolve(result.getArtifact().getId()))
-							.resolve(getFileName(result.getArtifact(), includeVersion, false));
+			Artifact a = result.getArtifact();
+			String version = a.getVersion();
+			if(a.isSnapshot()) {
+				version = "SNAPSHOT";
+			}
+			Path versionPath = output.toPath().resolve(version);
+			Path artifactPath = versionPath.resolve(a.getArtifactId());
+			String fileName = getFileName(a.getArtifactId(), version, a.getClassifier(), a.getType(), includeVersion,
+					false);
+			Path target = checkDir(artifactPath).resolve(fileName);
 			copy(extensionZip, target, Files.getLastModifiedTime(extensionZip).toInstant());
 		} catch (IOException e) {
 			throw new MojoExecutionException("Failed to copy extension to staging area.", e);

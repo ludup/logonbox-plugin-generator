@@ -31,6 +31,11 @@ public class CleanExtensionsMojo extends AbstractMojo {
 		} catch (IOException e) {
 			throw new MojoExecutionException("Failed to delete extension-def", e);
 		}
+		try {
+			FileUtils.deleteDirectory(new File(outputDirectory, "extension-store"));
+		} catch (IOException e) {
+			throw new MojoExecutionException("Failed to delete extension-def", e);
+		}
 	}
 
 }

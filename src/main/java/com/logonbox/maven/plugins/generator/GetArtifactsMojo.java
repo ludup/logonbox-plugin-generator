@@ -64,7 +64,7 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 		}
 	}
 
-	protected void handleResult(ArtifactResult result) throws MojoExecutionException {
+	protected void doHandleResult(ArtifactResult result) throws MojoExecutionException {
 		File file = result.getArtifact().getFile();
 		if (file == null || !file.exists()) {
 			getLog().warn("Artifact " + result.getArtifact().getArtifactId()
