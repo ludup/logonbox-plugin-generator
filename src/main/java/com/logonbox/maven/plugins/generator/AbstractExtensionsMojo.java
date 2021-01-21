@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -121,21 +122,42 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	 */
 	@Parameter(property = "transitive", defaultValue = "true")
 	protected boolean transitive = true;
-	
+
 	protected Set<String> artifactsDone = new HashSet<>();
 
 	private void handleResult(ArtifactResult result)
 			throws MojoExecutionException, DependencyResolverException, ArtifactResolverException {
 		String id = toCoords(result.getArtifact());
-		if(artifactsDone.contains(id))
+		if (artifactsDone.contains(id))
 			return;
 		else
 			artifactsDone.add(id);
-		doHandleResult(result);
+		try {
+			doHandleResult(result);
+		} catch (IOException e) {
+			throw new MojoExecutionException("Failed to handle.", e);
+		}
+	}
+
+	protected boolean isJarExtension(Artifact artifact) throws MojoExecutionException {
+		if ("jar".equals(artifact.getType())) {
+			if (EXTENSION_ARCHIVE.equals(artifact.getClassifier())) {
+				return true;
+			} else {
+				try (JarFile jarFile = new JarFile(artifact.getFile())) {
+					if (jarFile.getEntry("extension.def") != null) {
+						return true;
+					}
+				} catch (IOException ioe) {
+					throw new MojoExecutionException("Failed to test for extension jar.", ioe);
+				}
+			}
+		}
+		return false;
 	}
 
 	protected abstract void doHandleResult(ArtifactResult result)
-			throws MojoExecutionException, DependencyResolverException, ArtifactResolverException;
+			throws MojoExecutionException, DependencyResolverException, ArtifactResolverException, IOException;
 
 	protected void doCoordinate() throws MojoFailureException, MojoExecutionException, IllegalArgumentException,
 			DependencyResolverException, ArtifactResolverException {
@@ -174,13 +196,15 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 				 * dependencies that also have an extension zip
 				 */
 				if (EXTENSION_ARCHIVE.equals(coordinate.getClassifier())) {
-					getLog().debug("Resolving " + toCoords(result.getArtifact()) + " with transitive dependencies");
-					try {
-						handleResult(artifactResolver.resolveArtifact(buildingRequest,
-								toExtensionCoordinate(result.getArtifact())));
-					} catch (ArtifactResolverException arfe) {
-						getLog().debug("Failed to resolve " + result.getArtifact().getArtifactId()
-								+ " as an extension, assuming it isn't one");
+					if(isJarExtension(result.getArtifact())) {
+						getLog().debug("Resolving " + toCoords(result.getArtifact()) + " with transitive dependencies");
+						try {
+							handleResult(artifactResolver.resolveArtifact(buildingRequest,
+									toExtensionCoordinate(result.getArtifact())));
+						} catch (ArtifactResolverException arfe) {
+							getLog().debug("Failed to resolve " + result.getArtifact().getArtifactId()
+									+ " as an extension, assuming it isn't one");
+						}
 					}
 				} else {
 					handleResult(result);
@@ -211,10 +235,12 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	}
 
 	protected String getFileName(Artifact a, boolean includeVersion, boolean includeClassifier) {
-		return getFileName(a.getArtifactId(), a.getVersion(), a.getClassifier(), a.getType(), includeVersion, includeClassifier);
+		return getFileName(a.getArtifactId(), a.getVersion(), a.getClassifier(), a.getType(), includeVersion,
+				includeClassifier);
 	}
 
-	protected String getFileName(String artifactId, String version, String classifier, String type, boolean includeVersion, boolean includeClassifier) {
+	protected String getFileName(String artifactId, String version, String classifier, String type,
+			boolean includeVersion, boolean includeClassifier) {
 		StringBuilder fn = new StringBuilder();
 		fn.append(artifactId);
 		if (includeVersion) {

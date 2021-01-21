@@ -46,17 +46,19 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 
 		Set<Artifact> artifacts = project.getArtifacts();
 		for (Artifact artifact : artifacts) {
-			getLog().info("Getting " + artifact);
-			coordinate.setGroupId(artifact.getGroupId());
-			coordinate.setArtifactId(artifact.getArtifactId());
-			coordinate.setVersion(artifact.getVersion());
-			coordinate.setType("zip");
-			coordinate.setClassifier(EXTENSION_ARCHIVE);
+			if (isJarExtension(artifact)) {
+				getLog().info("Getting " + artifact);
+				coordinate.setGroupId(artifact.getGroupId());
+				coordinate.setArtifactId(artifact.getArtifactId());
+				coordinate.setVersion(artifact.getVersion());
+				coordinate.setType("zip");
+				coordinate.setClassifier(EXTENSION_ARCHIVE);
 
-			try {
-				doCoordinate();
-			} catch (MojoFailureException | DependencyResolverException | ArtifactResolverException e) {
-				getLog().debug("Failed to process an artifact, assuming it's not an extension.", e);
+				try {
+					doCoordinate();
+				} catch (MojoFailureException | DependencyResolverException | ArtifactResolverException e) {
+					getLog().debug("Failed to process an artifact, assuming it's not an extension.", e);
+				}
 			}
 		}
 	}
@@ -73,7 +75,7 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 		try {
 			Artifact a = result.getArtifact();
 			String version = a.getVersion();
-			if(a.isSnapshot()) {
+			if (a.isSnapshot()) {
 				version = "SNAPSHOT";
 			}
 			Path versionPath = output.toPath().resolve(version);
