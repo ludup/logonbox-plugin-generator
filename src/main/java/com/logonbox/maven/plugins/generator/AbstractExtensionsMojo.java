@@ -196,7 +196,7 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 				 * dependencies that also have an extension zip
 				 */
 				if (EXTENSION_ARCHIVE.equals(coordinate.getClassifier())) {
-					if(isJarExtension(result.getArtifact())) {
+//					if(isJarExtension(result.getArtifact())) {
 						getLog().debug("Resolving " + toCoords(result.getArtifact()) + " with transitive dependencies");
 						try {
 							handleResult(artifactResolver.resolveArtifact(buildingRequest,
@@ -205,7 +205,7 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 							getLog().debug("Failed to resolve " + result.getArtifact().getArtifactId()
 									+ " as an extension, assuming it isn't one");
 						}
-					}
+//					}
 				} else {
 					handleResult(result);
 				}

@@ -79,19 +79,21 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 		try {
 
 			for (Artifact artifact : project.getArtifacts()) {
-				if(isJarExtension(artifact)) {
+				if (isJarExtension(artifact)) {
 					coordinate.setGroupId(artifact.getGroupId());
 					coordinate.setArtifactId(artifact.getArtifactId());
 					coordinate.setVersion(artifact.getVersion());
 					coordinate.setType("zip");
 					coordinate.setClassifier(EXTENSION_ARCHIVE);
-	
+
 					try {
 						doCoordinate();
 					} catch (MojoFailureException | DependencyResolverException | ArtifactResolverException e) {
 						getLog().debug("Failed to process an artifact, assuming it's not an extension.", e);
 					}
 				}
+				else
+					getLog().debug(artifact.getId() + " is not an extension");
 			}
 
 			server = new MiniHttpServer(port, -1, null);
@@ -99,25 +101,21 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 				@Override
 				public DynamicContent get(Method method, String path, Map<String, List<String>> headers, InputStream in)
 						throws IOException {
-					System.out.println("Path: " + path);
 					String query = null;
 					int idx = path.indexOf('?');
 					if (idx != -1) {
 						query = path.substring(idx + 1);
 						path = path.substring(0, idx);
 					}
+					getLog().debug(String.format("Request for: %s", path));
 					if (path.startsWith("/api/store/private") || path.startsWith("/api/store/phases")) {
 						return handlePrivate();
 					} else if (path.startsWith("/api/store/repos2/")) {
-						// System.out.println(" Content: " + IOUtils.toString(in));
 						return store(path.substring(18).split("/")[0]);
 					} else if (map.containsKey(path)) {
-						System.out.println("look for " + path);
 						File file = map.get(path).artifact.getFile();
-						System.out.println("service " + file + " for " + path);
 						return new DynamicContent("application/zip", new FileInputStream(file));
 					} else {
-						System.out.println("not found " + path);
 						throw new FileNotFoundException(
 								"This extension store only serves the version of the project it is run from, "
 										+ project.getVersion() + ".");
@@ -152,7 +150,29 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 	}
 
 	public String getArtifactVersion(Artifact artifact) {
-		return artifact.isSnapshot() ? "SNAPSHOT" : artifact.getVersion();
+		String v = artifact.getVersion();
+		if (artifact.isSnapshot()) {
+			if (v.contains("-SNAPSHOT"))
+				return v;
+			else {
+				int idx = v.lastIndexOf("-");
+				if (idx == -1) {
+					return v;
+				} else {
+					idx = v.lastIndexOf(".", idx - 1);
+					if (idx == -1)
+						return v;
+					else {
+						idx = v.lastIndexOf("-", idx - 1);
+						if (idx == -1)
+							return v;
+						else
+							return v.substring(0, idx) + "-SNAPSHOT";
+					}
+				}
+			}
+		} else
+			return v;
 	}
 
 	DynamicContent store(String version) throws UnsupportedEncodingException {
@@ -160,12 +180,15 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 		// private String repository;
 		// private String featureGroup;
 
+		getLog().debug(String.format("Getting version: %s", version));
 		JsonArrayBuilder resources = Json.createArrayBuilder();
 		for (Map.Entry<String, Extension> en : map.entrySet()) {
 			JsonObjectBuilder resource = Json.createObjectBuilder();
 			Extension extension = en.getValue();
 			Artifact artifact = extension.artifact;
-			if (version.equals(artifact.getVersion())) {
+			String artifactVersion = getArtifactVersion(artifact);
+			getLog().debug(String.format("Comparing versions: %s and %s", version, artifactVersion));
+			if (version.equals(artifactVersion)) {
 				File file = artifact.getFile();
 				resource.add("size", file.length());
 				resource.add("url", en.getKey());
