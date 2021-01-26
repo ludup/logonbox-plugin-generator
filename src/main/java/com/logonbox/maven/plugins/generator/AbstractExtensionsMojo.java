@@ -123,6 +123,12 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	@Parameter(property = "transitive", defaultValue = "true")
 	protected boolean transitive = true;
 
+	/**
+	 * Update policy.
+	 */
+	@Parameter(property = "updatePolicy", defaultValue = ArtifactRepositoryPolicy.UPDATE_POLICY_INTERVAL)
+	private String updatePolicy = ArtifactRepositoryPolicy.UPDATE_POLICY_INTERVAL;
+
 	protected Set<String> artifactsDone = new HashSet<>();
 
 	private void handleResult(ArtifactResult result)
@@ -162,7 +168,7 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	protected void doCoordinate() throws MojoFailureException, MojoExecutionException, IllegalArgumentException,
 			DependencyResolverException, ArtifactResolverException {
 		ArtifactRepositoryPolicy always = new ArtifactRepositoryPolicy(true,
-				ArtifactRepositoryPolicy.UPDATE_POLICY_ALWAYS, ArtifactRepositoryPolicy.CHECKSUM_POLICY_WARN);
+				updatePolicy, ArtifactRepositoryPolicy.CHECKSUM_POLICY_WARN);
 
 		List<ArtifactRepository> repoList = new ArrayList<>();
 

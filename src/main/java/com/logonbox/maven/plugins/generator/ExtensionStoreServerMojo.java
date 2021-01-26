@@ -16,6 +16,7 @@ import javax.json.JsonArrayBuilder;
 import javax.json.JsonObjectBuilder;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -66,11 +67,14 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 	 * The extension target. Matches 'ExtensionTarget' in Hypersocket main source
 	 * tree.
 	 */
-	@Parameter(defaultValue = "SERVER", property = "plugin-generator.extension-server-target")
-	private String extensionTarget = "SERVER";
+	@Parameter(defaultValue = "", property = "plugin-generator.extension-server-target")
+	private String extensionTarget = "";
 
 	@Parameter(defaultValue = "Developer", property = "plugin-generator.extension-server-tab")
 	private String tab = "Developer";
+
+	@Parameter(defaultValue = "/app", property = "plugin-generator.extension-server-app-path")
+	private String appPath = "/app";
 
 	private MiniHttpServer server;
 	private Map<String, Extension> map = new HashMap<>();
@@ -108,10 +112,11 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 						path = path.substring(0, idx);
 					}
 					getLog().debug(String.format("Request for: %s", path));
-					if (path.startsWith("/api/store/private") || path.startsWith("/api/store/phases")) {
+					if (path.startsWith(appPath + "/api/store/private") || path.startsWith(appPath + "/api/store/phases")) {
 						return handlePrivate();
-					} else if (path.startsWith("/api/store/repos2/")) {
-						return store(path.substring(18).split("/")[0]);
+					} else if (path.startsWith(appPath + "/api/store/repos2/")) {
+						String[] parts = path.substring(appPath.length() + 18).split("/");
+						return store(parts[0], parts[3].split(",")[0]);
 					} else if (map.containsKey(path)) {
 						File file = map.get(path).artifact.getFile();
 						return new DynamicContent("application/zip", new FileInputStream(file));
@@ -175,7 +180,7 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 			return v;
 	}
 
-	DynamicContent store(String version) throws UnsupportedEncodingException {
+	DynamicContent store(String version, String target) throws UnsupportedEncodingException {
 		// private String filename;
 		// private String repository;
 		// private String featureGroup;
@@ -192,13 +197,14 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 				File file = artifact.getFile();
 				resource.add("size", file.length());
 				resource.add("url", en.getKey());
+				resource.add("filename", FilenameUtils.getName(en.getKey()));
 				resource.add("repositoryDescription", description);
 				resource.add("modifiedDate", file.lastModified());
 				resource.add("version", getArtifactVersion(extension.artifact));
 				resource.add("hash", extension.hash);
 				resource.add("extensionId", artifact.getArtifactId());
 				resource.add("state", "NOT_INSTALLED");
-				resource.add("target", extensionTarget);
+				resource.add("target", extensionTarget.equals("") ? target : extensionTarget);
 				resource.add("mandatory", false);
 				resource.add("weight", 0);
 				resource.add("tab", tab);
