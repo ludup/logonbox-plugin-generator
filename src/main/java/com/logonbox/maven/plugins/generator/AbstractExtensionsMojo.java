@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -49,8 +50,10 @@ import org.codehaus.plexus.util.StringUtils;
  * zips in a specific diretory. Based on {@link GetMojo}.
  */
 public abstract class AbstractExtensionsMojo extends AbstractMojo {
+	
 	protected static final String EXTENSION_ARCHIVE = "extension-archive";
 
+	private static final List<String> DEFAULT_GROUPS = Arrays.asList("com.hypersocket", "com.logonbox", "com.nervepoint", "com.sshtools", "com.jadaptive");
 	private static final Pattern ALT_REPO_SYNTAX_PATTERN = Pattern.compile("(.+)::(.*)::(.+)");
 
 	@Parameter(defaultValue = "${session}", required = true, readonly = true)
@@ -103,6 +106,15 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	 */
 	@Parameter(property = "extensions.excludeClassifiers")
 	protected List<String> excludeClassifiers;
+	/**
+	 * Which groups can contain extensions. This can massively speed up dependency 
+	 * by not needlessly contacting a Maven repository to determine if an artifact has
+	 * a extension archive artifact as well (which it tries to do for ALL dependencies
+	 * including 3rd party ones that will never has an extension archive). This provides
+	 * a way to optimise this, as we only have a few group names that have extensions. 
+	 */
+	@Parameter(property = "extensions.groups")
+	protected List<String> groups;
 
 	/**
 	 * Location of the file.
@@ -167,8 +179,17 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	protected boolean isExclude(Artifact artifact) {
 		return artifact != null && artifact.getClassifier() != null && artifact.getClassifier().length() > 0 && excludeClassifiers != null && excludeClassifiers.contains(artifact.getClassifier());
 	}
+	
+	protected boolean isProcessedGroup(Artifact artifact) {
+		if(groups == null || groups.isEmpty()) {
+			return DEFAULT_GROUPS.contains(artifact.getGroupId());
+		}
+		else
+			return groups.contains(artifact.getGroupId());
+	}
 
 	protected boolean isJarExtension(Artifact artifact) throws MojoExecutionException {
+		
 		if ("jar".equals(artifact.getType())) {
 			if (EXTENSION_ARCHIVE.equals(artifact.getClassifier())) {
 				return true;
@@ -227,7 +248,7 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 				 * dependencies that also have an extension zip
 				 */
 				if (EXTENSION_ARCHIVE.equals(coordinate.getClassifier())) {
-//					if(isJarExtension(result.getArtifact())) {
+					if(isProcessedGroup(result.getArtifact())){
 						getLog().debug("Resolving " + toCoords(result.getArtifact()) + " with transitive dependencies");
 						try {
 							handleResult(artifactResolver.resolveArtifact(buildingRequest,
@@ -236,7 +257,7 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 							getLog().debug("Failed to resolve " + result.getArtifact().getArtifactId()
 									+ " as an extension, assuming it isn't one");
 						}
-//					}
+					}
 				} else {
 					handleResult(result);
 				}

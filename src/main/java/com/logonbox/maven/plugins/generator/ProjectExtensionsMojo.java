@@ -46,7 +46,7 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 
 		Set<Artifact> artifacts = project.getArtifacts();
 		for (Artifact artifact : artifacts) {
-			if (isJarExtension(artifact)) {
+			if (isProcessedGroup(artifact) && isJarExtension(artifact)) {
 				getLog().info("Getting " + artifact);
 				coordinate.setGroupId(artifact.getGroupId());
 				coordinate.setArtifactId(artifact.getArtifactId());

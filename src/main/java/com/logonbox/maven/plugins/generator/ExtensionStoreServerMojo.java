@@ -83,7 +83,7 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 		try {
 
 			for (Artifact artifact : project.getArtifacts()) {
-				if (isJarExtension(artifact)) {
+				if (isProcessedGroup(artifact) && isJarExtension(artifact)) {
 					coordinate.setGroupId(artifact.getGroupId());
 					coordinate.setArtifactId(artifact.getArtifactId());
 					coordinate.setVersion(artifact.getVersion());
