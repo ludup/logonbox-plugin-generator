@@ -181,11 +181,12 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	}
 	
 	protected boolean isProcessedGroup(Artifact artifact) {
-		if(groups == null || groups.isEmpty()) {
-			return DEFAULT_GROUPS.contains(artifact.getGroupId());
-		}
-		else
-			return groups.contains(artifact.getGroupId());
+//		if(groups == null || groups.isEmpty()) {
+//			return DEFAULT_GROUPS.contains(artifact.getGroupId());
+//		}
+//		else
+//			return groups.contains(artifact.getGroupId());
+		return true;
 	}
 
 	protected boolean isJarExtension(Artifact artifact) throws MojoExecutionException {
