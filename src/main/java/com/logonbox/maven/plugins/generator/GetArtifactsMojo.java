@@ -27,7 +27,7 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 	/**
 	 * A string of the form groupId:artifactId:version[:packaging[:classifier]].
 	 */
-	@Parameter(property = "artifact")
+	@Parameter(property = "get-artifacts.artifact")
 	private List<String> artifacts;
 
 	@Override

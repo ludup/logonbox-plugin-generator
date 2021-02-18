@@ -32,6 +32,7 @@ import java.nio.channels.OverlappingFileLockException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -41,7 +42,6 @@ import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.maven.artifact.Artifact;
-import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Component;
@@ -51,8 +51,13 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.MavenProjectHelper;
+import org.apache.maven.shared.transfer.artifact.resolve.ArtifactResolverException;
+import org.apache.maven.shared.transfer.artifact.resolve.ArtifactResult;
+import org.apache.maven.shared.transfer.dependencies.DefaultDependableCoordinate;
+import org.apache.maven.shared.transfer.dependencies.resolve.DependencyResolverException;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.IOUtil;
+import org.codehaus.plexus.util.StringUtils;
 import org.eclipse.sisu.Description;
 
 /**
@@ -60,7 +65,7 @@ import org.eclipse.sisu.Description;
  */
 @Mojo(threadSafe = true, name = "generate-plugin", requiresProject = true, defaultPhase = LifecyclePhase.PACKAGE, requiresDependencyResolution = ResolutionScope.RUNTIME, requiresDependencyCollection = ResolutionScope.RUNTIME)
 @Description("Generates the dependencies for plugin generation")
-public class GeneratePluginMojo extends AbstractMojo {
+public class GeneratePluginMojo extends AbstractExtensionsMojo {
 
 	protected static final String SEPARATOR = "/";
 
@@ -116,10 +121,23 @@ public class GeneratePluginMojo extends AbstractMojo {
 	 */
 	@Parameter(defaultValue = "true", property = "plugin-generator.attach")
 	private boolean attach = true;
+	/**
+	 *
+	 */
+	@Parameter(property = "plugin-generator.classifiersTargets")
+	protected Map<String, String> classifiersTargets = new HashMap<>();
+	
+	/**
+	 * Additional artifacts to add to the extension. A string of the form groupId:artifactId:version[:packaging[:classifier]].
+	 */
+	@Parameter(property = "plugin-generator.artifacts")
+	private List<String> artifacts;
 
 	@Component
 	private MavenProjectHelper projectHelper;
-
+	
+	private List<Artifact> extraArtifacts = new ArrayList<>();
+	
 	@SuppressWarnings("unchecked")
 	public void execute() throws MojoExecutionException, MojoFailureException {
 		if (skipPoms && "pom".equals(project.getPackaging())) {
@@ -141,7 +159,36 @@ public class GeneratePluginMojo extends AbstractMojo {
 				throw new MojoExecutionException(
 						"There is no dependency map to generate plugins. Did you execute resolve-dependencies goal first?");
 			}
+			
+			/* Download extra artifacts (e.g. platform specific jars for SWT, JavaFX etc
+			 * without adding them to the primary POM
+			 */
+			for (String artifact : artifacts) {
+				getLog().info("Getting " + artifact);
+				String[] tokens = StringUtils.split(artifact, ":");
+				if (tokens.length < 3 || tokens.length > 5) {
+					throw new MojoFailureException("Invalid artifact, you must specify "
+							+ "groupId:artifactId:version[:packaging[:classifier]] " + artifact);
+				}
+				coordinate.setGroupId(tokens[0]);
+				coordinate.setArtifactId(tokens[1]);
+				coordinate.setVersion(tokens[2]);
+				if (tokens.length >= 4) {
+					coordinate.setType(tokens[3]);
+				}
+				if (tokens.length == 5) {
+					coordinate.setClassifier(tokens[4]);
+				}
 
+				try {
+					doCoordinate();
+				} catch (MojoFailureException | DependencyResolverException | ArtifactResolverException e) {
+					throw new MojoExecutionException("Failed to process an artifact.", e);
+				}
+
+				coordinate = new DefaultDependableCoordinate();
+			}
+			
 			try (@SuppressWarnings("resource")
 			FileChannel channel = new RandomAccessFile(allDependenciesFile, "rw").getChannel()) {
 				InputStream in = Channels.newInputStream(channel);
@@ -225,7 +272,13 @@ public class GeneratePluginMojo extends AbstractMojo {
 					ZipEntry e = new ZipEntry(project.getArtifactId() + "/");
 					zip.putNextEntry(e);
 
-					Set<Artifact> artifacts = project.getArtifacts();
+					List<Artifact> artifacts = new ArrayList<>();
+
+					getLog().info("Adding " + extraArtifacts.size() + " extra artifacts ");
+					artifacts.addAll(extraArtifacts);
+
+					getLog().info("Adding " + project.getArtifacts().size() + " primary artifacts ");
+					artifacts.addAll(project.getArtifacts());
 
 					getLog().info("Adding project artifact " + project.getArtifact().getFile().getName());
 
@@ -258,7 +311,15 @@ public class GeneratePluginMojo extends AbstractMojo {
 						String artifactKey = ResolveDependenciesMojo.makeKey(a);
 						File resolvedFile = null;
 
-						if (!versionMap.containsKey(artifactKey)) {
+						if(isExclude(a))  {
+							getLog().info("Artifact " + artifactKey + " is excluded");
+							continue;
+						}
+						else if(extraArtifacts.contains(a)) {
+							getLog().info("Artifact " + artifactKey + " is an extra");
+							resolvedFile = a.getFile();
+						}
+						else if (!versionMap.containsKey(artifactKey)) {
 							getLog().info("Artifact " + artifactKey + " IS MISSING from version map. Is "
 									+ project.getArtifactId()
 									+ " included in the application group dependency pom i.e. app-enterprise?");
@@ -291,9 +352,10 @@ public class GeneratePluginMojo extends AbstractMojo {
 							resolvedFile = a.getFile();
 						}
 
-						if (appendFolderMap.containsKey(a.getArtifactId())) {
+						List<String> folderMaps = getAppendFolderMap(appendFolderMap, a);
+						if (folderMaps != null) {
 
-							for (String folder : appendFolderMap.get(a.getArtifactId())) {
+							for (String folder : folderMaps) {
 
 								getLog().info(
 										"Adding " + resolvedFile.getName() + " to folder " + folder + " plugin zip");
@@ -375,6 +437,28 @@ public class GeneratePluginMojo extends AbstractMojo {
 		}
 	}
 
+	private List<String> getAppendFolderMap(Map<String, List<String>> appendFolderMap, Artifact a) {
+		List<String> maps = new ArrayList<>();
+		for(Map.Entry<String, List<String>> en : appendFolderMap.entrySet())  {
+			if(matches(a, en.getKey())) {
+				maps.addAll(en.getValue());
+			}
+		}
+		return maps.isEmpty() ? null : maps;
+	}
+
+	private boolean matches(Artifact a, String key) {
+		String[] args = key.split(":");
+		if(args.length == 2) {
+			return ( args[0].equals("") || a.getGroupId().equals(args[0]) ) && (args[1].equals("") || a.getArtifactId().equals(args[1]));
+		}
+		else if(args.length == 3) {
+			return ( args[0].equals("") || a.getGroupId().equals(args[0]) ) && (args[1].equals("") || a.getArtifactId().equals(args[1]))
+					&& (args[2].equals("") || args[2].equals(a.getClassifier()));
+		}
+		return a.getArtifactId().equals(key);
+	}
+
 	public FileLock getLock(FileChannel channel) throws IOException {
 		while (true) {
 			try {
@@ -401,5 +485,12 @@ public class GeneratePluginMojo extends AbstractMojo {
 			IOUtil.copy(new FileInputStream(file), zip);
 			zip.closeEntry();
 		}
+	}
+
+	@Override
+	protected void doHandleResult(ArtifactResult result)
+			throws MojoExecutionException, DependencyResolverException, ArtifactResolverException, IOException {
+		/* Only used for extra artifacts */
+		extraArtifacts.add(result.getArtifact());
 	}
 }

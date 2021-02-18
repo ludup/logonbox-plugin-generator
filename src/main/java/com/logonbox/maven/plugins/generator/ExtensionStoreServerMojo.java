@@ -54,26 +54,26 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 	/**
 	 * The maven project.
 	 */
-	@Parameter(required = true, readonly = true, property = "project")
+	@Parameter(required = true, readonly = true, property = "extension-store.project")
 	protected MavenProject project;
 
-	@Parameter(defaultValue = "8081", property = "plugin-generator.extension-server-port")
+	@Parameter(defaultValue = "8081", property = "extension-store.port")
 	private int port;
 
-	@Parameter(defaultValue = "Generated Developers Extension Store", property = "plugin-generator.extension-server-description")
+	@Parameter(defaultValue = "Generated Developers Extension Store", property = "extension-store.description")
 	private String description;
 
 	/*
 	 * The extension target. Matches 'ExtensionTarget' in Hypersocket main source
 	 * tree.
 	 */
-	@Parameter(defaultValue = "", property = "plugin-generator.extension-server-target")
+	@Parameter(defaultValue = "", property = "extension-store.target")
 	private String extensionTarget = "";
 
-	@Parameter(defaultValue = "Developer", property = "plugin-generator.extension-server-tab")
+	@Parameter(defaultValue = "Developer", property = "extension-store.tab")
 	private String tab = "Developer";
 
-	@Parameter(defaultValue = "/app", property = "plugin-generator.extension-server-app-path")
+	@Parameter(defaultValue = "/app", property = "extension-store.app-path")
 	private String appPath = "/app";
 
 	private MiniHttpServer server;

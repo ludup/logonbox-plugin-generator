@@ -30,7 +30,7 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 	@Parameter(required = true, readonly = true, property = "project")
 	protected MavenProject project;
 
-	@Parameter(defaultValue = "${project.build.directory}/extension-store", property = "output", required = true)
+	@Parameter(defaultValue = "${project.build.directory}/extension-store", property = "project-extensions.output", required = true)
 	protected File output;
 
 	{

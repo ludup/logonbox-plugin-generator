@@ -90,7 +90,7 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	 * ie.
 	 * central::default::https://repo.maven.apache.org/maven2,myrepo::::https://repo.acme.com,https://repo.acme2.com
 	 */
-	@Parameter(property = "remoteRepositories")
+	@Parameter(property = "extensions.remoteRepositories")
 	protected String remoteRepositories;
 
 	/**
@@ -98,11 +98,16 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	 */
 	@Parameter(defaultValue = "${project.remoteArtifactRepositories}", readonly = true, required = true)
 	protected List<ArtifactRepository> pomRemoteRepositories;
+	/**
+	 *
+	 */
+	@Parameter(property = "extensions.excludeClassifiers")
+	protected List<String> excludeClassifiers;
 
 	/**
 	 * Location of the file.
 	 */
-	@Parameter(defaultValue = "${project.build.directory}/artifacts", property = "output", required = true)
+	@Parameter(defaultValue = "${project.build.directory}/artifacts", property = "extensions.output", required = true)
 	protected File output;
 
 	/**
@@ -110,7 +115,7 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	 *
 	 * @since 2.7
 	 */
-	@Parameter(property = "mdep.skip", defaultValue = "false")
+	@Parameter(property = "extensions.skip", defaultValue = "false")
 	protected boolean skip;
 
 	@Parameter(defaultValue = "true")
@@ -120,20 +125,34 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	 * Download transitively, retrieving the specified artifact and all of its
 	 * dependencies.
 	 */
-	@Parameter(property = "transitive", defaultValue = "true")
+	@Parameter(property = "extensions.transitive", defaultValue = "true")
 	protected boolean transitive = true;
 
 	/**
 	 * Update policy.
 	 */
-	@Parameter(property = "updatePolicy", defaultValue = ArtifactRepositoryPolicy.UPDATE_POLICY_INTERVAL)
-	private String updatePolicy = ArtifactRepositoryPolicy.UPDATE_POLICY_INTERVAL;
+	@Parameter(property = "extensions.updatePolicy")
+	private String updatePolicy;
+
+	/**
+	 * Update policy.
+	 */
+	@Parameter(property = "extensions.checksumPolicy")
+	private String checksumPolicy;
 
 	protected Set<String> artifactsDone = new HashSet<>();
 
 	private void handleResult(ArtifactResult result)
 			throws MojoExecutionException, DependencyResolverException, ArtifactResolverException {
-		String id = toCoords(result.getArtifact());
+
+		Artifact artifact = result.getArtifact();
+		String id = toCoords(artifact);
+		
+		if(isExclude(artifact)) {
+			getLog().info(String.format("Skipping %s because it's classifier is excluded.", id));
+			return;
+		}
+			
 		if (artifactsDone.contains(id))
 			return;
 		else
@@ -143,6 +162,10 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 		} catch (IOException e) {
 			throw new MojoExecutionException("Failed to handle.", e);
 		}
+	}
+
+	protected boolean isExclude(Artifact artifact) {
+		return artifact != null && artifact.getClassifier() != null && artifact.getClassifier().length() > 0 && excludeClassifiers != null && excludeClassifiers.contains(artifact.getClassifier());
 	}
 
 	protected boolean isJarExtension(Artifact artifact) throws MojoExecutionException {
@@ -167,8 +190,10 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 
 	protected void doCoordinate() throws MojoFailureException, MojoExecutionException, IllegalArgumentException,
 			DependencyResolverException, ArtifactResolverException {
+		
 		ArtifactRepositoryPolicy always = new ArtifactRepositoryPolicy(true,
-				updatePolicy, ArtifactRepositoryPolicy.CHECKSUM_POLICY_WARN);
+				updatePolicy == null ? ArtifactRepositoryPolicy.UPDATE_POLICY_INTERVAL : updatePolicy, 
+				checksumPolicy == null ? ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE : checksumPolicy );
 
 		List<ArtifactRepository> repoList = new ArrayList<>();
 
@@ -224,7 +249,7 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	}
 
 	private String toCoords(Artifact artifact) {
-		return artifact.getArtifactId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion();
+		return artifact.getArtifactId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion() + (artifact.getClassifier() == null ? "" : ":" + artifact.getClassifier());
 	}
 
 	protected void copy(Path p1, Path p2, Instant mod) throws IOException {

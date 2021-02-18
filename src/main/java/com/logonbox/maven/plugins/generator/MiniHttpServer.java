@@ -131,7 +131,7 @@ public class MiniHttpServer extends Thread implements Closeable {
 		LOG.info(String.format("Open temporary HTTP server on port %d", http));
 
 		if (http > 0) {
-			serversocket = new ServerSocket(http, 10);
+			serversocket = new ServerSocket(http, 10, InetAddress.getByName("0.0.0.0"));
 			serversocket.setReuseAddress(true);
 		}
 
