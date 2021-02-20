@@ -126,18 +126,19 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 	 */
 	@Parameter(property = "plugin-generator.classifiersTargets")
 	protected Map<String, String> classifiersTargets = new HashMap<>();
-	
+
 	/**
-	 * Additional artifacts to add to the extension. A string of the form groupId:artifactId:version[:packaging[:classifier]].
+	 * Additional artifacts to add to the extension. A string of the form
+	 * groupId:artifactId:version[:packaging[:classifier]].
 	 */
 	@Parameter(property = "plugin-generator.artifacts")
 	private List<String> artifacts;
 
 	@Component
 	private MavenProjectHelper projectHelper;
-	
+
 	private List<Artifact> extraArtifacts = new ArrayList<>();
-	
+
 	@SuppressWarnings("unchecked")
 	public void execute() throws MojoExecutionException, MojoFailureException {
 		if (skipPoms && "pom".equals(project.getPackaging())) {
@@ -159,8 +160,9 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 				throw new MojoExecutionException(
 						"There is no dependency map to generate plugins. Did you execute resolve-dependencies goal first?");
 			}
-			
-			/* Download extra artifacts (e.g. platform specific jars for SWT, JavaFX etc
+
+			/*
+			 * Download extra artifacts (e.g. platform specific jars for SWT, JavaFX etc
 			 * without adding them to the primary POM
 			 */
 			for (String artifact : artifacts) {
@@ -188,7 +190,7 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 
 				coordinate = new DefaultDependableCoordinate();
 			}
-			
+
 			try (@SuppressWarnings("resource")
 			FileChannel channel = new RandomAccessFile(allDependenciesFile, "rw").getChannel()) {
 				InputStream in = Channels.newInputStream(channel);
@@ -254,7 +256,9 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 					FileUtils.copyDirectory(sourceI18n, destI18n, project.getArtifactId() + "*", null);
 
 					Properties props = new Properties();
-					props.load(new FileInputStream(sourceDef));
+					try(FileInputStream fin = new FileInputStream(sourceDef)) {
+						props.load(fin);
+					}
 
 					File sourceImage = new File(project.getBasedir(), "target" + File.separator + "classes"
 							+ File.separator + props.getProperty("extension.image"));
@@ -267,100 +271,124 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 					File zipfile = new File(extensionDef,
 							project.getArtifactId() + "-" + project.getVersion() + ".zip");
 
-					ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(zipfile));
+					try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(zipfile))) {
 
-					ZipEntry e = new ZipEntry(project.getArtifactId() + "/");
-					zip.putNextEntry(e);
+						ZipEntry e = new ZipEntry(project.getArtifactId() + "/");
+						zip.putNextEntry(e);
 
-					List<Artifact> artifacts = new ArrayList<>();
+						List<Artifact> artifacts = new ArrayList<>();
 
-					getLog().info("Adding " + extraArtifacts.size() + " extra artifacts ");
-					artifacts.addAll(extraArtifacts);
+						getLog().info("Adding " + extraArtifacts.size() + " extra artifacts ");
+						artifacts.addAll(extraArtifacts);
 
-					getLog().info("Adding " + project.getArtifacts().size() + " primary artifacts ");
-					artifacts.addAll(project.getArtifacts());
+						getLog().info("Adding " + project.getArtifacts().size() + " primary artifacts ");
+						artifacts.addAll(project.getArtifacts());
 
-					getLog().info("Adding project artifact " + project.getArtifact().getFile().getName());
+						getLog().info("Adding project artifact " + project.getArtifact().getFile().getName());
 
-					e = new ZipEntry(project.getArtifactId() + "/" + project.getArtifact().getFile().getName());
-					zip.putNextEntry(e);
+						e = new ZipEntry(project.getArtifactId() + "/" + project.getArtifact().getFile().getName());
+						zip.putNextEntry(e);
 
-					IOUtil.copy(new FileInputStream(project.getArtifact().getFile()), zip);
-
-					zip.closeEntry();
-					Set<String> addedPaths = new HashSet<String>();
-					Map<String, List<String>> appendFolderMap = new HashMap<String, List<String>>();
-
-					if (appendFolders != null) {
-						for (String af : appendFolders) {
-							int idx = af.indexOf('=');
-							String artifactId = af.substring(0, idx);
-							String folder = af.substring(idx + 1);
-
-							getLog().info("Will append folder " + folder + " to artifact " + artifactId);
-
-							if (!appendFolderMap.containsKey(artifactId)) {
-								appendFolderMap.put(artifactId, new ArrayList<String>());
-							}
-
-							appendFolderMap.get(artifactId).add(folder);
+						try(FileInputStream fin = new FileInputStream(project.getArtifact().getFile())) {
+							IOUtil.copy(fin, zip);
 						}
-					}
-					for (Artifact a : artifacts) {
 
-						String artifactKey = ResolveDependenciesMojo.makeKey(a);
-						File resolvedFile = null;
+						zip.closeEntry();
+						Set<String> addedPaths = new HashSet<String>();
+						Map<String, List<String>> appendFolderMap = new HashMap<String, List<String>>();
 
-						if(isExclude(a))  {
-							getLog().info("Artifact " + artifactKey + " is excluded");
-							continue;
-						}
-						else if(extraArtifacts.contains(a)) {
-							getLog().info("Artifact " + artifactKey + " is an extra");
-							resolvedFile = a.getFile();
-						}
-						else if (!versionMap.containsKey(artifactKey)) {
-							getLog().info("Artifact " + artifactKey + " IS MISSING from version map. Is "
-									+ project.getArtifactId()
-									+ " included in the application group dependency pom i.e. app-enterprise?");
-							continue;
-						} else {
+						if (appendFolders != null) {
+							for (String af : appendFolders) {
+								int idx = af.indexOf('=');
+								String artifactId = af.substring(0, idx);
+								String folder = af.substring(idx + 1);
 
-							String resolvedVersion = versionMap.get(artifactKey);
-							if (coreVersionMap.containsKey(artifactKey)) {
-								getLog().info("Artifact " + artifactKey + " " + resolvedVersion
-										+ " (omitted due to being part of core dependencies)");
-								continue;
-							} else {
-								if (!resolvedVersion.equals(a.getBaseVersion())) {
-									getLog().info("Artifact " + artifactKey + " " + resolvedVersion
-											+ " (omitted version " + a.getBaseVersion() + ")");
-								} else {
-									getLog().info("Artifact " + artifactKey + " " + resolvedVersion);
+								getLog().info("Will append folder " + folder + " to artifact " + artifactId);
+
+								if (!appendFolderMap.containsKey(artifactId)) {
+									appendFolderMap.put(artifactId, new ArrayList<String>());
 								}
 
-								resolvedFile = artifactMap.get(artifactKey);
+								appendFolderMap.get(artifactId).add(folder);
 							}
 						}
+						for (Artifact a : artifacts) {
 
-						if (!resolvedFile.exists()) {
-							getLog().warn(resolvedFile.getAbsolutePath() + " does not exist!");
-							continue;
-						}
-						if (resolvedFile.isDirectory()) {
-							getLog().warn(resolvedFile.getAbsolutePath() + " is a directory");
-							resolvedFile = a.getFile();
-						}
+							String artifactKey = ResolveDependenciesMojo.makeKey(a);
+							File resolvedFile = null;
 
-						List<String> folderMaps = getAppendFolderMap(appendFolderMap, a);
-						if (folderMaps != null) {
+							if (isExclude(a)) {
+								getLog().info("Artifact " + artifactKey + " is excluded");
+								continue;
+							} else if (extraArtifacts.contains(a)) {
+								getLog().info("Artifact " + artifactKey + " is an extra");
+								resolvedFile = a.getFile();
+							} else if (!versionMap.containsKey(artifactKey)) {
+								getLog().info("Artifact " + artifactKey + " IS MISSING from version map. Is "
+										+ project.getArtifactId()
+										+ " included in the application group dependency pom i.e. app-enterprise?");
+								continue;
+							} else {
 
-							for (String folder : folderMaps) {
+								String resolvedVersion = versionMap.get(artifactKey);
+								if (coreVersionMap.containsKey(artifactKey)) {
+									getLog().info("Artifact " + artifactKey + " " + resolvedVersion
+											+ " (omitted due to being part of core dependencies)");
+									continue;
+								} else {
+									if (!resolvedVersion.equals(a.getBaseVersion())) {
+										getLog().info("Artifact " + artifactKey + " " + resolvedVersion
+												+ " (omitted version " + a.getBaseVersion() + ")");
+									} else {
+										getLog().info("Artifact " + artifactKey + " " + resolvedVersion);
+									}
 
-								getLog().info(
-										"Adding " + resolvedFile.getName() + " to folder " + folder + " plugin zip");
+									resolvedFile = artifactMap.get(artifactKey);
+								}
+							}
 
-								String path = project.getArtifactId() + "/" + folder + "/" + resolvedFile.getName();
+							if (!resolvedFile.exists()) {
+								getLog().warn(resolvedFile.getAbsolutePath() + " does not exist!");
+								continue;
+							}
+							if (resolvedFile.isDirectory()) {
+								getLog().warn(resolvedFile.getAbsolutePath() + " is a directory");
+								resolvedFile = a.getFile();
+							}
+
+							List<String> folderMaps = getAppendFolderMap(appendFolderMap, a);
+							if (folderMaps != null) {
+
+								for (String folder : folderMaps) {
+
+									getLog().info("Adding " + resolvedFile.getName() + " to folder " + folder
+											+ " plugin zip");
+
+									String path = project.getArtifactId() + "/" + folder + "/" + resolvedFile.getName();
+
+									if (addedPaths.contains(path)) {
+										getLog().info("Already added " + path);
+										continue;
+									}
+
+									addedPaths.add(path);
+
+									e = new ZipEntry(path);
+
+									zip.putNextEntry(e);
+
+									try(FileInputStream fin = new FileInputStream(resolvedFile)) {
+										IOUtil.copy(fin, zip);
+									}
+
+									zip.closeEntry();
+								}
+
+							} else {
+
+								getLog().info("Adding " + resolvedFile.getName() + " to plugin zip");
+
+								String path = project.getArtifactId() + "/" + resolvedFile.getName();
 
 								if (addedPaths.contains(path)) {
 									getLog().info("Already added " + path);
@@ -373,56 +401,40 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 
 								zip.putNextEntry(e);
 
-								IOUtil.copy(new FileInputStream(resolvedFile), zip);
+								try(FileInputStream fin = new FileInputStream(resolvedFile)) {
+									IOUtil.copy(fin, zip);
+								}
 
 								zip.closeEntry();
+
 							}
-
-						} else {
-
-							getLog().info("Adding " + resolvedFile.getName() + " to plugin zip");
-
-							String path = project.getArtifactId() + "/" + resolvedFile.getName();
-
-							if (addedPaths.contains(path)) {
-								getLog().info("Already added " + path);
-								continue;
-							}
-
-							addedPaths.add(path);
-
-							e = new ZipEntry(path);
-
-							zip.putNextEntry(e);
-
-							IOUtil.copy(new FileInputStream(resolvedFile), zip);
-
-							zip.closeEntry();
 
 						}
 
-					}
-
-					if (archiveFiles != null) {
-						for (File file : archiveFiles) {
-							zipAndRecurse(file, project.getBasedir(), zip);
+						if (archiveFiles != null) {
+							for (File file : archiveFiles) {
+								zipAndRecurse(file, project.getBasedir(), zip);
+							}
 						}
 					}
-
-					zip.close();
 
 					// Generate an MD5 hash
 					File md5File = new File(extensionDef,
 							project.getArtifactId() + "-" + project.getVersion() + ".md5");
-					FileUtils.fileWrite(md5File.getAbsolutePath(), DigestUtils.md5Hex(new FileInputStream(zipfile)));
+					
+					try(FileInputStream zin = new FileInputStream(zipfile)) {
+						FileUtils.fileWrite(md5File.getAbsolutePath(), DigestUtils.md5Hex(zin));
+					}
 
-					getLog().info("MD5 sum value is " + IOUtil.toString(new FileInputStream(md5File)));
+					try(FileInputStream zin = new FileInputStream(md5File)) {
+						getLog().info("MD5 sum value is " + IOUtil.toString(zin));
+					}
 
 					getLog().info("Copying archive to local store " + storeTarget.getAbsolutePath());
 
 					FileUtils.copyFile(zipfile, storeTarget);
-					
-					if(attach) {
+
+					if (attach) {
 						getLog().info("Attaching artifact as extension-archive zip");
 						projectHelper.attachArtifact(project, "zip", "extension-archive", storeTarget);
 					}
@@ -439,8 +451,8 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 
 	private List<String> getAppendFolderMap(Map<String, List<String>> appendFolderMap, Artifact a) {
 		List<String> maps = new ArrayList<>();
-		for(Map.Entry<String, List<String>> en : appendFolderMap.entrySet())  {
-			if(matches(a, en.getKey())) {
+		for (Map.Entry<String, List<String>> en : appendFolderMap.entrySet()) {
+			if (matches(a, en.getKey())) {
 				maps.addAll(en.getValue());
 			}
 		}
@@ -449,11 +461,12 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 
 	private boolean matches(Artifact a, String key) {
 		String[] args = key.split(":");
-		if(args.length == 2) {
-			return ( args[0].equals("") || a.getGroupId().equals(args[0]) ) && (args[1].equals("") || a.getArtifactId().equals(args[1]));
-		}
-		else if(args.length == 3) {
-			return ( args[0].equals("") || a.getGroupId().equals(args[0]) ) && (args[1].equals("") || a.getArtifactId().equals(args[1]))
+		if (args.length == 2) {
+			return (args[0].equals("") || a.getGroupId().equals(args[0]))
+					&& (args[1].equals("") || a.getArtifactId().equals(args[1]));
+		} else if (args.length == 3) {
+			return (args[0].equals("") || a.getGroupId().equals(args[0]))
+					&& (args[1].equals("") || a.getArtifactId().equals(args[1]))
 					&& (args[2].equals("") || args[2].equals(a.getClassifier()));
 		}
 		return a.getArtifactId().equals(key);
@@ -482,7 +495,9 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 		} else {
 			zip.putNextEntry(new ZipEntry(
 					project.getArtifactId() + file.getAbsolutePath().replace(parent.getAbsolutePath(), "")));
-			IOUtil.copy(new FileInputStream(file), zip);
+			try(FileInputStream fin = new FileInputStream(file)) {
+				IOUtil.copy(fin, zip);
+			}
 			zip.closeEntry();
 		}
 	}
