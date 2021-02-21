@@ -4,12 +4,14 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.project.MavenProject;
 import org.apache.maven.shared.transfer.artifact.resolve.ArtifactResolverException;
 import org.apache.maven.shared.transfer.artifact.resolve.ArtifactResult;
 import org.apache.maven.shared.transfer.dependencies.DefaultDependableCoordinate;
@@ -25,10 +27,38 @@ import org.codehaus.plexus.util.StringUtils;
 public class GetArtifactsMojo extends AbstractExtensionsMojo {
 
 	/**
-	 * A string of the form groupId:artifactId:version[:packaging[:classifier]].
+	 * A string list of the form groupId:artifactId:[version[:packaging[:classifier]]].
 	 */
-	@Parameter(property = "get-artifacts.artifact")
+	@Parameter(property = "get-artifacts.artifacts")
 	private List<String> artifacts;
+
+	/**
+	 * A single string of the form groupId:artifactId:[version[:packaging[:classifier]]]<SPACING>groupId:artifactId:[version[:packaging[:classifier]]]....
+	 */
+	@Parameter(property = "get-artifacts.artifactList")
+	private String artifactList;
+	
+	/**
+	 * Default classifier
+	 */
+	@Parameter(property = "get-artifacts.defaultClassifer")
+	private String defaultClassifier;
+	
+	/**
+	 * Default classifier
+	 */
+	@Parameter(property = "get-artifacts.defaultType")
+	private String defaultType;
+	
+	/**
+	 * The maven project.
+	 * 
+	 * @parameter expression="${project}"
+	 * @required
+	 * @readonly
+	 */
+	@Parameter(required = true, readonly = true, property = "project")
+	protected MavenProject project;
 
 	@Override
 	public void execute() throws MojoExecutionException, MojoFailureException {
@@ -36,8 +66,20 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 			getLog().info("Skipping plugin execution");
 			return;
 		}
-
-		for (String artifact : artifacts) {
+		
+		List<String> allArtifacts = new ArrayList<>();
+		if(artifacts != null)
+			allArtifacts.addAll(artifacts);
+		if(artifactList != null) {
+			for(String a : artifactList.split("\\s+")) {
+				a = a.trim();
+				if(!a.equals("")) {
+					allArtifacts.add(a);
+				}
+			}
+		}
+		
+		for (String artifact : allArtifacts) {
 			getLog().info("Getting " + artifact);
 			String[] tokens = StringUtils.split(artifact, ":");
 			if (tokens.length < 3 || tokens.length > 5) {
@@ -46,12 +88,29 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 			}
 			coordinate.setGroupId(tokens[0]);
 			coordinate.setArtifactId(tokens[1]);
-			coordinate.setVersion(tokens[2]);
+			if (tokens.length >= 3) {
+				coordinate.setVersion(tokens[2]);
+			}
+			else {
+				if(project != null)
+					coordinate.setVersion(project.getVersion());
+				else
+					throw new MojoExecutionException("Need a project if not version is specified.");
+			}
+			
 			if (tokens.length >= 4) {
 				coordinate.setType(tokens[3]);
+				if (tokens.length == 5) {
+					coordinate.setClassifier(tokens[4]);
+				}
+				else {
+					if(defaultClassifier != null && defaultClassifier.length() > 0)
+						coordinate.setClassifier(defaultClassifier);
+				}
 			}
-			if (tokens.length == 5) {
-				coordinate.setClassifier(tokens[4]);
+			else {
+				if(defaultType != null && defaultType.length() > 0)
+					coordinate.setType(defaultType);
 			}
 
 			try {
