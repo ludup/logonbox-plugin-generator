@@ -133,6 +133,9 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	@Parameter(defaultValue = "true")
 	protected boolean includeVersion;
 
+	@Parameter(defaultValue = "true")
+	protected boolean processSnapshotVersions;
+
 	/**
 	 * Download transitively, retrieving the specified artifact and all of its
 	 * dependencies.
@@ -288,7 +291,7 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	}
 
 	protected String getFileName(Artifact a, boolean includeVersion, boolean includeClassifier) {
-		return getFileName(a.getArtifactId(), a.getVersion(), a.getClassifier(), a.getType(), includeVersion,
+		return getFileName(a.getArtifactId(), getArtifactVersion(a, processSnapshotVersions), a.getClassifier(), a.getType(), includeVersion,
 				includeClassifier);
 	}
 
@@ -383,4 +386,33 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 		return skip;
 	}
 
+	protected String getArtifactVersion(Artifact artifact) {
+		return getArtifactVersion(artifact, true);
+	}
+	
+	protected String getArtifactVersion(Artifact artifact, boolean processSnapshotVersions) {
+		String v = artifact.getVersion();
+		if (artifact.isSnapshot()) {
+			if (v.contains("-SNAPSHOT") || !processSnapshotVersions)
+				return v;
+			else {
+				int idx = v.lastIndexOf("-");
+				if (idx == -1) {
+					return v;
+				} else {
+					idx = v.lastIndexOf(".", idx - 1);
+					if (idx == -1)
+						return v;
+					else {
+						idx = v.lastIndexOf("-", idx - 1);
+						if (idx == -1)
+							return v;
+						else
+							return v.substring(0, idx) + "-SNAPSHOT";
+					}
+				}
+			}
+		} else
+			return v;
+	}
 }

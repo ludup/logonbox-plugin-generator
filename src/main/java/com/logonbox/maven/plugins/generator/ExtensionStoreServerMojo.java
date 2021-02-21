@@ -154,31 +154,6 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 
 	}
 
-	public String getArtifactVersion(Artifact artifact) {
-		String v = artifact.getVersion();
-		if (artifact.isSnapshot()) {
-			if (v.contains("-SNAPSHOT"))
-				return v;
-			else {
-				int idx = v.lastIndexOf("-");
-				if (idx == -1) {
-					return v;
-				} else {
-					idx = v.lastIndexOf(".", idx - 1);
-					if (idx == -1)
-						return v;
-					else {
-						idx = v.lastIndexOf("-", idx - 1);
-						if (idx == -1)
-							return v;
-						else
-							return v.substring(0, idx) + "-SNAPSHOT";
-					}
-				}
-			}
-		} else
-			return v;
-	}
 
 	DynamicContent store(String version, String target) throws UnsupportedEncodingException {
 		// private String filename;
