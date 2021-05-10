@@ -14,6 +14,9 @@ public abstract class AbstractBaseExtensionsMojo extends AbstractMojo {
 		String v = artifact.getVersion();
 		if (artifact.isSnapshot()) {
 			if (v.contains("-SNAPSHOT") || !processSnapshotVersions)
+				if(v.contains("-SNAPSHOT"))
+					return v.substring(0, v.indexOf("-SNAPSHOT")) + "-" + getSnapshotVersionSuffix();
+				else
 				return v;
 			else {
 				int idx = v.lastIndexOf("-");
