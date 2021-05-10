@@ -25,7 +25,6 @@ import org.apache.maven.artifact.repository.ArtifactRepositoryPolicy;
 import org.apache.maven.artifact.repository.MavenArtifactRepository;
 import org.apache.maven.artifact.repository.layout.ArtifactRepositoryLayout;
 import org.apache.maven.execution.MavenSession;
-import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Component;
@@ -49,7 +48,7 @@ import org.codehaus.plexus.util.StringUtils;
  * Resolves and downloads all of a projects extensions and place the resulting
  * zips in a specific diretory. Based on {@link GetMojo}.
  */
-public abstract class AbstractExtensionsMojo extends AbstractMojo {
+public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo {
 	
 	protected static final String EXTENSION_ARCHIVE = "extension-archive";
 
@@ -184,27 +183,21 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	}
 	
 	protected boolean isProcessedGroup(Artifact artifact) {
-//		if(groups == null || groups.isEmpty()) {
-//			return DEFAULT_GROUPS.contains(artifact.getGroupId());
-//		}
-//		else
-//			return groups.contains(artifact.getGroupId());
-		return true;
+		if(groups == null || groups.isEmpty()) {
+			return DEFAULT_GROUPS.contains(artifact.getGroupId());
+		}
+		else
+			return groups.contains(artifact.getGroupId());
 	}
 
 	protected boolean isJarExtension(Artifact artifact) throws MojoExecutionException {
-		
 		if ("jar".equals(artifact.getType())) {
-			if (EXTENSION_ARCHIVE.equals(artifact.getClassifier())) {
-				return true;
-			} else {
-				try (JarFile jarFile = new JarFile(artifact.getFile())) {
-					if (jarFile.getEntry("extension.def") != null) {
-						return true;
-					}
-				} catch (IOException ioe) {
-					throw new MojoExecutionException("Failed to test for extension jar.", ioe);
+			try (JarFile jarFile = new JarFile(artifact.getFile())) {
+				if (jarFile.getEntry("extension.def") != null) {
+					return true;
 				}
+			} catch (IOException ioe) {
+				throw new MojoExecutionException("Failed to test for extension jar.", ioe);
 			}
 		}
 		return false;
@@ -216,8 +209,11 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	protected void doCoordinate() throws MojoFailureException, MojoExecutionException, IllegalArgumentException,
 			DependencyResolverException, ArtifactResolverException {
 		
+//		ArtifactRepositoryPolicy always = new ArtifactRepositoryPolicy(true,
+//				updatePolicy == null ? ArtifactRepositoryPolicy.UPDATE_POLICY_INTERVAL : updatePolicy, 
+//				checksumPolicy == null ? ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE : checksumPolicy );
 		ArtifactRepositoryPolicy always = new ArtifactRepositoryPolicy(true,
-				updatePolicy == null ? ArtifactRepositoryPolicy.UPDATE_POLICY_INTERVAL : updatePolicy, 
+				updatePolicy == null ? ArtifactRepositoryPolicy.UPDATE_POLICY_NEVER : updatePolicy, 
 				checksumPolicy == null ? ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE : checksumPolicy );
 
 		List<ArtifactRepository> repoList = new ArrayList<>();
@@ -384,35 +380,5 @@ public abstract class AbstractExtensionsMojo extends AbstractMojo {
 	 */
 	protected boolean isSkip() {
 		return skip;
-	}
-
-	protected String getArtifactVersion(Artifact artifact) {
-		return getArtifactVersion(artifact, true);
-	}
-	
-	protected String getArtifactVersion(Artifact artifact, boolean processSnapshotVersions) {
-		String v = artifact.getVersion();
-		if (artifact.isSnapshot()) {
-			if (v.contains("-SNAPSHOT") || !processSnapshotVersions)
-				return v;
-			else {
-				int idx = v.lastIndexOf("-");
-				if (idx == -1) {
-					return v;
-				} else {
-					idx = v.lastIndexOf(".", idx - 1);
-					if (idx == -1)
-						return v;
-					else {
-						idx = v.lastIndexOf("-", idx - 1);
-						if (idx == -1)
-							return v;
-						else
-							return v.substring(0, idx) + "-SNAPSHOT";
-					}
-				}
-			}
-		} else
-			return v;
 	}
 }

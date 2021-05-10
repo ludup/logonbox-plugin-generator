@@ -507,4 +507,9 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 		/* Only used for extra artifacts */
 		extraArtifacts.add(result.getArtifact());
 	}
+
+	@Override
+	protected boolean isSnapshotVersionAsBuildNumber() {
+		return false;
+	}
 }

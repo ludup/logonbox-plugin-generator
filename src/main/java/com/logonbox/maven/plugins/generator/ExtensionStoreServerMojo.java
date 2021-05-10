@@ -10,6 +10,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.json.Json;
 import javax.json.JsonArrayBuilder;
@@ -54,7 +55,7 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 	/**
 	 * The maven project.
 	 */
-	@Parameter(required = true, readonly = true, property = "extension-store.project")
+	@Parameter(required = true, readonly = true, property = "project")
 	protected MavenProject project;
 
 	@Parameter(defaultValue = "8081", property = "extension-store.port")
@@ -81,8 +82,9 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 
 	public void execute() throws MojoExecutionException, MojoFailureException {
 		try {
-
-			for (Artifact artifact : project.getArtifacts()) {
+			
+			Set<Artifact> artifacts = project.getArtifacts();
+			for (Artifact artifact : artifacts) {
 				if (isProcessedGroup(artifact) && isJarExtension(artifact)) {
 					coordinate.setGroupId(artifact.getGroupId());
 					coordinate.setArtifactId(artifact.getArtifactId());
@@ -154,6 +156,10 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 
 	}
 
+	@Override
+	protected boolean isSnapshotVersionAsBuildNumber() {
+		return true;
+	}
 
 	DynamicContent store(String version, String target) throws UnsupportedEncodingException {
 		// private String filename;

@@ -24,6 +24,9 @@ import org.apache.maven.shared.transfer.dependencies.resolve.DependencyResolverE
 @Mojo(name = "project-extensions", requiresProject = true, threadSafe = true, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME)
 public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 
+	@Parameter(defaultValue = "true")
+	protected boolean snapshotVersionAsBuildNumber;
+
 	/**
 	 * The maven project.
 	 */
@@ -74,13 +77,10 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 		Path extensionZip = file.toPath();
 		try {
 			Artifact a = result.getArtifact();
-			String version = a.getVersion();
-			if (a.isSnapshot()) {
-				version = "SNAPSHOT";
-			}
+			String version = getArtifactVersion(a, true);
 			Path versionPath = output.toPath().resolve(version);
 			Path artifactPath = versionPath.resolve(a.getArtifactId());
-			String fileName = getFileName(a.getArtifactId(), version, a.getClassifier(), a.getType(), includeVersion,
+			String fileName = getFileName(a.getArtifactId(), getArtifactVersion(a, true), a.getClassifier(), a.getType(), includeVersion,
 					false);
 			Path target = checkDir(artifactPath).resolve(fileName);
 			copy(extensionZip, target, Files.getLastModifiedTime(extensionZip).toInstant());
@@ -90,4 +90,8 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 
 	}
 
+	@Override
+	protected boolean isSnapshotVersionAsBuildNumber() {
+		return snapshotVersionAsBuildNumber;
+	}
 }

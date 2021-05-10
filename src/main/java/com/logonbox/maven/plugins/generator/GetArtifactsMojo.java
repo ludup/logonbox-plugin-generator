@@ -49,6 +49,9 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 	 */
 	@Parameter(property = "get-artifacts.defaultType")
 	private String defaultType;
+
+	@Parameter(defaultValue = "true")
+	protected boolean snapshotVersionAsBuildNumber;
 	
 	/**
 	 * The maven project.
@@ -123,6 +126,7 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 		}
 	}
 
+	@Override
 	protected void doHandleResult(ArtifactResult result) throws MojoExecutionException {
 		File file = result.getArtifact().getFile();
 		if (file == null || !file.exists()) {
@@ -141,4 +145,8 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 
 	}
 
+	@Override
+	protected boolean isSnapshotVersionAsBuildNumber() {
+		return snapshotVersionAsBuildNumber;
+	}
 }
