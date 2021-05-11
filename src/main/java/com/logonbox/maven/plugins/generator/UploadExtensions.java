@@ -40,9 +40,6 @@ public class UploadExtensions extends AbstractBaseExtensionsMojo {
 	@Parameter(property = "s3upload.keyPrefix", required = false)
 	private String keyPrefix;
 
-	@Parameter(property = "s3upload.updateServerURL", required = true, defaultValue = "https://updates2.hypersocket.com/app/api/webhooks/publish/generateBeta")
-	private String updateServerURL;
-
 	@Parameter(property = "s3upload.region", required = true, defaultValue = "eu-west-1")
 	private String region;
 
@@ -75,15 +72,6 @@ public class UploadExtensions extends AbstractBaseExtensionsMojo {
 			xfer_mgr.shutdownNow();
 		}
 		getLog().info("Upload to S3 complete");
-		String artifactVersion = getArtifactVersion(project.getArtifact());
-		try {
-			URL url = new URL(updateServerURL + "?version=" + artifactVersion);
-			getLog().info("Notify update server using " + url);
-			url.getContent();
-			getLog().info("Notified update server using " + url);
-		} catch (IOException ioe) {
-			throw new MojoExecutionException("Failed to notify update server of version " + artifactVersion);
-		}
 	}
 
 	@Override
