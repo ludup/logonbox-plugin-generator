@@ -143,6 +143,13 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 	protected boolean transitive = true;
 
 	/**
+	 * Download transitively, retrieving the specified artifact and all of its
+	 * dependencies.
+	 */
+	@Parameter(property = "extensions.useRemoteRepositories", defaultValue = "true")
+	protected boolean useRemoteRepositories = true;
+
+	/**
 	 * Update policy.
 	 */
 	@Parameter(property = "extensions.updatePolicy")
@@ -215,10 +222,9 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 		ArtifactRepositoryPolicy always = new ArtifactRepositoryPolicy(true,
 				updatePolicy == null ? ArtifactRepositoryPolicy.UPDATE_POLICY_NEVER : updatePolicy, 
 				checksumPolicy == null ? ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE : checksumPolicy );
-
 		List<ArtifactRepository> repoList = new ArrayList<>();
 
-		if (pomRemoteRepositories != null) {
+		if (pomRemoteRepositories != null && useRemoteRepositories) {
 			repoList.addAll(pomRemoteRepositories);
 		}
 

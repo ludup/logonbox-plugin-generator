@@ -1,8 +1,6 @@
 package com.logonbox.maven.plugins.generator;
 
 import java.io.File;
-import java.io.IOException;
-import java.net.URL;
 
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
