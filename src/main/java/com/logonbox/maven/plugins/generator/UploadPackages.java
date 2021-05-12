@@ -2,6 +2,7 @@ package com.logonbox.maven.plugins.generator;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import org.apache.maven.model.FileSet;
@@ -35,13 +36,26 @@ public class UploadPackages extends AbstractS3UploadMojo {
 
 	@Override
 	protected void upload(AmazonS3 amazonS3) throws IOException {
-		for (File file : toFileList(files)) {
+		List<File> fileList = toFileList(files);
+		getLog().info(fileList.size() + " files to upload for set " + files);
+		for (File file : fileList) {
+			getLog().info("Uploading " + file + " to " + bucketName + "@" + keyPrefix);
 			TransferManager xfer_mgr = TransferManagerBuilder.standard().withS3Client(amazonS3).build();
-			MultipleFileUpload xfer = xfer_mgr.uploadDirectory(bucketName, keyPrefix, file, true);
-			try {
-				XferMgrProgress.showTransferProgress(xfer);
-			} finally {
-				xfer_mgr.shutdownNow();
+			if(file.isFile()) {
+				MultipleFileUpload xfer = xfer_mgr.uploadFileList(bucketName, keyPrefix, file.getParentFile(),  Arrays.asList(file));
+				try {
+					XferMgrProgress.showTransferProgress(xfer);
+				} finally {
+					xfer_mgr.shutdownNow();
+				}
+			}
+			else {
+				MultipleFileUpload xfer = xfer_mgr.uploadDirectory(bucketName, keyPrefix, file, true);
+				try {
+					XferMgrProgress.showTransferProgress(xfer);
+				} finally {
+					xfer_mgr.shutdownNow();
+				}
 			}
 		}
 
