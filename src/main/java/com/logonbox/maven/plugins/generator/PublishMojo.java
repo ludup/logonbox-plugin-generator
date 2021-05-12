@@ -18,7 +18,7 @@ import org.eclipse.sisu.Description;
 @Description("Public extension version to update server")
 public class PublishMojo extends AbstractBaseExtensionsMojo {
 
-	@Parameter(property = "s3upload.updateServerURL", required = true, defaultValue = "https://updates2.hypersocket.com/app/api/webhooks/publish/generateBeta")
+	@Parameter(property = "s3upload.updateServerURL", required = true, defaultValue = "https://updates2.hypersocket.com/app/api/webhooks/publish/generateNightly[[majorMinorTag]]?version=[[artifactVersion]]")
 	private String updateServerURL;
 
 	@Parameter(required = true, readonly = true, property = "project")
@@ -27,7 +27,11 @@ public class PublishMojo extends AbstractBaseExtensionsMojo {
 	public void execute() throws MojoExecutionException, MojoFailureException {
 		String artifactVersion = getArtifactVersion(project.getArtifact());
 		try {
-			URL url = new URL(updateServerURL + "?version=" + artifactVersion);
+			String urlTxt = updateServerURL;
+			String[] versionParts = artifactVersion.replace(".", "_").split("_");
+			urlTxt = urlTxt.replace("[[majorMinorTag]]", String.format("%s_%s", versionParts[0], versionParts[1]));
+			urlTxt = urlTxt.replace("[[artifactVersion]]", artifactVersion);
+			URL url = new URL(urlTxt);
 			getLog().info("Notify update server using " + url);
 			url.getContent();
 			getLog().info("Notified update server using " + url);
