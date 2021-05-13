@@ -37,22 +37,27 @@ public abstract class AbstractS3UploadMojo extends AbstractBaseExtensionsMojo {
 	protected MavenProject project;
 
 	public void execute() throws MojoExecutionException, MojoFailureException {
-		AWSCredentials creds = new BasicAWSCredentials(accessKey, secretKey);
-		AmazonS3 amazonS3 = AmazonS3Client.builder()
-			    .withRegion(region)
-			    .withCredentials(new AWSStaticCredentialsProvider(creds))
-			    .build();
+		AmazonS3 amazonS3 = newClient();
 
 		getLog().info("Uploading to S3");
 		try {
-			upload(amazonS3);
+			amazonS3 = upload(amazonS3);
 		} catch (IOException e) {
 			throw new MojoExecutionException("Failed to upload to S3.", e);
 		}
 		getLog().info("Upload to S3 complete");
 	}
 
-	protected abstract void upload(AmazonS3 amazonS3) throws IOException;
+	protected AmazonS3 newClient() {
+		AWSCredentials creds = new BasicAWSCredentials(accessKey, secretKey);
+		AmazonS3 amazonS3 = AmazonS3Client.builder()
+			    .withRegion(region)
+			    .withCredentials(new AWSStaticCredentialsProvider(creds))
+			    .build();
+		return amazonS3;
+	}
+
+	protected abstract AmazonS3 upload(AmazonS3 amazonS3) throws IOException;
 
 	@Override
 	protected boolean isSnapshotVersionAsBuildNumber() {

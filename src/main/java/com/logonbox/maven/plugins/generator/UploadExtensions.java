@@ -30,7 +30,7 @@ public class UploadExtensions extends AbstractS3UploadMojo {
 	protected MavenProject project;
 
 	@Override
-	protected void upload(AmazonS3 amazonS3) {
+	protected AmazonS3 upload(AmazonS3 amazonS3) {
 
 		TransferManager xfer_mgr = TransferManagerBuilder.standard().withS3Client(amazonS3).build();
 		MultipleFileUpload xfer = xfer_mgr.uploadDirectory(bucketName, keyPrefix, extensions, true);
@@ -39,6 +39,7 @@ public class UploadExtensions extends AbstractS3UploadMojo {
 		} finally {
 			xfer_mgr.shutdownNow();
 		}
+		return amazonS3;
 
 	}
 

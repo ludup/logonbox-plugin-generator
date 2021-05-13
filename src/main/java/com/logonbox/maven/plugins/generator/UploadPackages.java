@@ -35,7 +35,7 @@ public class UploadPackages extends AbstractS3UploadMojo {
 	protected MavenProject project;
 
 	@Override
-	protected void upload(AmazonS3 amazonS3) throws IOException {
+	protected AmazonS3 upload(AmazonS3 amazonS3) throws IOException {
 		List<File> fileList = toFileList(files);
 		getLog().info(fileList.size() + " files to upload for set " + files);
 		for (File file : fileList) {
@@ -57,7 +57,10 @@ public class UploadPackages extends AbstractS3UploadMojo {
 					xfer_mgr.shutdownNow();
 				}
 			}
+			
+			amazonS3 = newClient();
 		}
+		return amazonS3;
 
 	}
 
