@@ -5,7 +5,6 @@ import java.io.IOException;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.project.MavenProject;
 
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
@@ -30,13 +29,7 @@ public abstract class AbstractS3UploadMojo extends AbstractBaseExtensionsMojo {
 	@Parameter(property = "s3upload.accessKey", required = true)
 	private String accessKey;
 
-	/**
-	 * The maven project.
-	 */
-	@Parameter(required = true, readonly = true, property = "project")
-	protected MavenProject project;
-
-	public void execute() throws MojoExecutionException, MojoFailureException {
+	protected void onExecute() throws MojoExecutionException, MojoFailureException {
 		AmazonS3 amazonS3 = newClient();
 
 		getLog().info("Uploading to S3");

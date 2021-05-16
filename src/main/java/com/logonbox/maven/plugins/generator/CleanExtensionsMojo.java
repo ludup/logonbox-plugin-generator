@@ -4,19 +4,18 @@ import java.io.File;
 import java.io.IOException;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
-import org.eclipse.sisu.Description;
+import org.sonatype.inject.Description;
 
 /**
  * Clean extension dependency files.
  */
 @Mojo(name = "clean", requiresProject = true, requiresDirectInvocation = false, executionStrategy = "once-per-session", threadSafe = true)
 @Description("Cleans extension files")
-public class CleanExtensionsMojo extends AbstractMojo {
+public class CleanExtensionsMojo extends AbstractBaseExtensionsMojo {
 
 	/**
 	 * The directory where the generated flattened POM file will be written to.
@@ -24,7 +23,7 @@ public class CleanExtensionsMojo extends AbstractMojo {
 	@Parameter(defaultValue = "${project.basedir}")
 	private File outputDirectory;
 
-	public void execute() throws MojoExecutionException, MojoFailureException {
+	protected void onExecute() throws MojoExecutionException, MojoFailureException {
 		new File(outputDirectory, "dependencies.ser").delete();
 		try {
 			FileUtils.deleteDirectory(new File(outputDirectory, "extension-def"));

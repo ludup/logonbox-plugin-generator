@@ -9,7 +9,7 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
-import org.eclipse.sisu.Description;
+import org.sonatype.inject.Description;
 
 /**
  * Public extension version to update server
@@ -24,7 +24,7 @@ public class PublishMojo extends AbstractBaseExtensionsMojo {
 	@Parameter(required = true, readonly = true, property = "project")
 	protected MavenProject project;
 
-	public void execute() throws MojoExecutionException, MojoFailureException {
+	protected void onExecute() throws MojoExecutionException, MojoFailureException {
 		String artifactVersion = getArtifactVersion(project.getArtifact());
 		try {
 			String urlTxt = updateServerURL;

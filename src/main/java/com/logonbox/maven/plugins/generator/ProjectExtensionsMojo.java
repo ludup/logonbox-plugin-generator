@@ -41,7 +41,7 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 	}
 
 	@Override
-	public void execute() throws MojoExecutionException, MojoFailureException {
+	protected void onExecute() throws MojoExecutionException, MojoFailureException {
 		if (isSkip()) {
 			getLog().info("Skipping plugin execution");
 			return;

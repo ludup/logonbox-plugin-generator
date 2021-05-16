@@ -1,17 +1,22 @@
 //snippet-sourcedescription:[XferMgrProgress.java demonstrates how to use the S3 transfermanager to upload files to a bucket and show progress of the upload.]
 package com.logonbox.maven.plugins.generator;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.event.ProgressEvent;
-import com.amazonaws.event.ProgressListener;
-import com.amazonaws.services.s3.transfer.*;
-import com.amazonaws.services.s3.transfer.Transfer.TransferState;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 // snippet-end:[s3.java1.s3_xfer_mgr_progress.import]
+
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.event.ProgressEvent;
+import com.amazonaws.event.ProgressListener;
+import com.amazonaws.services.s3.transfer.MultipleFileUpload;
+import com.amazonaws.services.s3.transfer.Transfer;
+import com.amazonaws.services.s3.transfer.Transfer.TransferState;
+import com.amazonaws.services.s3.transfer.TransferManager;
+import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
+import com.amazonaws.services.s3.transfer.TransferProgress;
+import com.amazonaws.services.s3.transfer.Upload;
 
 // snippet-start:[s3.java1.s3_xfer_mgr_progress.complete]
 public class XferMgrProgress {

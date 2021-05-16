@@ -28,7 +28,7 @@ import org.apache.maven.project.MavenProject;
 import org.apache.maven.shared.transfer.artifact.resolve.ArtifactResolverException;
 import org.apache.maven.shared.transfer.artifact.resolve.ArtifactResult;
 import org.apache.maven.shared.transfer.dependencies.resolve.DependencyResolverException;
-import org.eclipse.sisu.Description;
+import org.sonatype.inject.Description;
 
 import com.logonbox.maven.plugins.generator.MiniHttpServer.DynamicContent;
 import com.logonbox.maven.plugins.generator.MiniHttpServer.DynamicContentFactory;
@@ -80,7 +80,7 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 	private MiniHttpServer server;
 	private Map<String, Extension> map = new HashMap<>();
 
-	public void execute() throws MojoExecutionException, MojoFailureException {
+	protected void onExecute() throws MojoExecutionException, MojoFailureException {
 		try {
 			
 			Set<Artifact> artifacts = project.getArtifacts();

@@ -5,7 +5,6 @@ import java.io.IOException;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.project.MavenProject;
 
 import com.sshtools.client.SshClient;
 import com.sshtools.client.sftp.SftpClientTask;
@@ -28,13 +27,7 @@ public abstract class AbstractSSHUploadMojo extends AbstractBaseExtensionsMojo {
 	@Parameter(property = "sshupload.password", required = true)
 	protected String password;
 
-	/**
-	 * The maven project.
-	 */
-	@Parameter(required = true, readonly = true, property = "project")
-	protected MavenProject project;
-
-	public void execute() throws MojoExecutionException, MojoFailureException {
+	protected void onExecute() throws MojoExecutionException, MojoFailureException {
 
 		getLog().info("Uploading to SSH server");
 		try (SshClient ssh = new SshClient(host, port, username, password.toCharArray())) {

@@ -57,7 +57,7 @@ import org.apache.maven.shared.transfer.dependencies.resolve.DependencyResolverE
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.IOUtil;
 import org.codehaus.plexus.util.StringUtils;
-import org.eclipse.sisu.Description;
+import org.sonatype.inject.Description;
 
 /**
  * Generates the dependencies properties file
@@ -139,7 +139,7 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 	private List<Artifact> extraArtifacts = new ArrayList<>();
 
 	@SuppressWarnings("unchecked")
-	public void execute() throws MojoExecutionException, MojoFailureException {
+	protected void onExecute() throws MojoExecutionException, MojoFailureException {
 		if (skipPoms && "pom".equals(project.getPackaging())) {
 			getLog().info("Skipping POM project " + project.getName());
 			return;
