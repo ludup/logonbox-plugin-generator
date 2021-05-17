@@ -18,7 +18,8 @@ import org.apache.maven.plugins.annotations.Parameter;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.sftp.SFTPClient;
 
-public abstract class AbstractSSHUploadMojo extends AbstractBaseExtensionsMojo /* implements FileTransferProgress */ {
+// /* implements FileTransferProgress */
+public abstract class AbstractSSHUploadMojo extends AbstractBaseExtensionsMojo {
 
 	@Parameter(property = "sshupload.host", required = true, defaultValue = "packager.hypersocket.io")
 	protected String host;
@@ -33,9 +34,9 @@ public abstract class AbstractSSHUploadMojo extends AbstractBaseExtensionsMojo /
 	protected String password;
 
 
-	private long total;
-	private String transferring;
-	private int pc;
+//	private long total;
+//	private String transferring;
+//	private int pc;
 
 	@Override
 	protected boolean isSnapshotVersionAsBuildNumber() {

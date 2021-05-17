@@ -18,7 +18,6 @@ import org.sonatype.inject.Description;
 
 import net.schmizz.sshj.sftp.SFTPClient;
 import net.schmizz.sshj.xfer.FileSystemFile;
-import net.schmizz.sshj.xfer.LocalSourceFile;
 
 /**
  * Upload Deb packages to SSH server (packager).
