@@ -9,22 +9,19 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.sonatype.inject.Description;
 
-//import com.sshtools.client.sftp.SftpClientTask;
-//import com.sshtools.client.sftp.TransferCancelledException;
-//import com.sshtools.client.tasks.FileTransferProgress;
-//import com.sshtools.common.permissions.PermissionDeniedException;
-//import com.sshtools.common.sftp.SftpStatusException;
-//import com.sshtools.common.ssh.SshException;
-
-import net.schmizz.sshj.sftp.SFTPClient;
-import net.schmizz.sshj.xfer.FileSystemFile;
+import com.sshtools.client.sftp.SftpClientTask;
+import com.sshtools.client.sftp.TransferCancelledException;
+import com.sshtools.client.tasks.FileTransferProgress;
+import com.sshtools.common.permissions.PermissionDeniedException;
+import com.sshtools.common.sftp.SftpStatusException;
+import com.sshtools.common.ssh.SshException;
 
 /**
  * Upload Deb packages to SSH server (packager).
  */
 @Mojo(defaultPhase = LifecyclePhase.DEPLOY, name = "upload-deb", requiresProject = true, requiresDirectInvocation = false, executionStrategy = "once-per-session", threadSafe = false)
 @Description("Upload debian packages to repository")
-public class UploadDeb extends AbstractSSHUploadMojo  {
+public class UploadDeb extends AbstractSSHUploadMojo implements FileTransferProgress {
 
 	/**
 	 * The maven project.
@@ -44,18 +41,42 @@ public class UploadDeb extends AbstractSSHUploadMojo  {
 	@Parameter(defaultValue = "${project.build.directory}", property = "upload-deb.dir", required = true)
 	protected File dir;
 
-//	@Override
-//	protected void upload(SftpClientTask ssh) throws IOException, SshException, SftpStatusException, TransferCancelledException, PermissionDeniedException {
-//		ssh.cd(repository + "/" + codename);
-//		ssh.lcd(dir.getAbsolutePath());
-//		ssh.putFiles(source.getPath() + "/*.deb", this);
-//	}
+	private long total;
+	private String transferring;
+	private int pc;
+
 	@Override
-	protected void upload(SFTPClient ssh) throws IOException {
-		for(File file : source.listFiles()) {
-			if(file.getName().endsWith(".deb")) {
-				ssh.put(new FileSystemFile(file), repository + "/" + codename);
-			}
+	protected void upload(SftpClientTask ssh) throws IOException, SshException, SftpStatusException, TransferCancelledException, PermissionDeniedException {
+		ssh.cd(repository + "/" + codename);
+		ssh.lcd(dir.getAbsolutePath());
+		ssh.putFiles(source.getPath() + "/*.deb", this);
+	}
+
+	@Override
+	public void started(long bytesTotal, String remoteFile) {
+		getLog().info("Starting to transfer " + remoteFile);
+		pc = -1;
+		transferring = remoteFile;
+		total = bytesTotal;
+	}
+
+	@Override
+	public boolean isCancelled() {
+		return false;
+	}
+
+	@Override
+	public void progressed(long bytesSoFar) {
+		int tpc = (int)(((double)bytesSoFar / (double)total ) * 100d);
+		if(tpc != pc) {
+			pc = tpc;
+			getLog().info(pc + "% complete");
 		}
 	}
+
+	@Override
+	public void completed() {
+		getLog().info("Transferred " + transferring);
+	}
+
 }
