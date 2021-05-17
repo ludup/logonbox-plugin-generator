@@ -80,6 +80,13 @@
             <version>1.2</version>
 		</dependency>
 	</dependencies>
+	
+	<repositories>
+        <repository>
+            <id>ossrh-sshtools</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+	</repositories>
 
 	<distributionManagement>
 		<repository>
