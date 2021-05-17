@@ -69,11 +69,18 @@
 			<artifactId>jaxb-api</artifactId>
 			<version>2.4.0-b180830.0359</version>
 		</dependency>
-		<dependency>
+		<!-- <dependency>
 		    <groupId>com.sshtools</groupId>
 		    <artifactId>maverick-synergy-client</artifactId>
 		    <version>3.0.0-RC6</version>
+		</dependency> -->
+		
+		<dependency>
+		    <groupId>com.hierynomus</groupId>
+		    <artifactId>sshj</artifactId>
+		    <version>0.31.0</version>
 		</dependency>
+		
 		<dependency>
             <artifactId>jdeb</artifactId>
             <groupId>org.vafer</groupId>
