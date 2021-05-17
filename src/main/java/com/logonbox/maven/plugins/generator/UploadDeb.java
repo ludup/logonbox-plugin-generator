@@ -11,7 +11,6 @@ import org.sonatype.inject.Description;
 
 import com.sshtools.client.sftp.SftpClientTask;
 import com.sshtools.client.sftp.TransferCancelledException;
-import com.sshtools.client.tasks.FileTransferProgress;
 import com.sshtools.common.permissions.PermissionDeniedException;
 import com.sshtools.common.sftp.SftpStatusException;
 import com.sshtools.common.ssh.SshException;
@@ -21,7 +20,7 @@ import com.sshtools.common.ssh.SshException;
  */
 @Mojo(defaultPhase = LifecyclePhase.DEPLOY, name = "upload-deb", requiresProject = true, requiresDirectInvocation = false, executionStrategy = "once-per-session", threadSafe = false)
 @Description("Upload debian packages to repository")
-public class UploadDeb extends AbstractSSHUploadMojo implements FileTransferProgress {
+public class UploadDeb extends AbstractSSHUploadMojo  {
 
 	/**
 	 * The maven project.

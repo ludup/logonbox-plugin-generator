@@ -9,13 +9,14 @@ import org.apache.maven.plugins.annotations.Parameter;
 import com.sshtools.client.SshClient;
 import com.sshtools.client.sftp.SftpClientTask;
 import com.sshtools.client.sftp.TransferCancelledException;
+import com.sshtools.client.tasks.FileTransferProgress;
 import com.sshtools.common.logger.Log;
 import com.sshtools.common.logger.Log.Level;
 import com.sshtools.common.permissions.PermissionDeniedException;
 import com.sshtools.common.sftp.SftpStatusException;
 import com.sshtools.common.ssh.SshException;
 
-public abstract class AbstractSSHUploadMojo extends AbstractBaseExtensionsMojo {
+public abstract class AbstractSSHUploadMojo extends AbstractBaseExtensionsMojo implements FileTransferProgress {
 
 	@Parameter(property = "sshupload.host", required = true, defaultValue = "packager.hypersocket.io")
 	protected String host;
@@ -28,6 +29,10 @@ public abstract class AbstractSSHUploadMojo extends AbstractBaseExtensionsMojo {
 
 	@Parameter(property = "sshupload.password", required = true)
 	protected String password;
+
+	private long total;
+	private String transferring;
+	private int pc;
 
 	protected void onExecute() throws MojoExecutionException, MojoFailureException {
 		Log.getDefaultContext().enableConsole(Level.DEBUG);
@@ -58,4 +63,31 @@ public abstract class AbstractSSHUploadMojo extends AbstractBaseExtensionsMojo {
 		return true;
 	}
 
+
+	@Override
+	public void started(long bytesTotal, String remoteFile) {
+		getLog().info("Starting to transfer " + remoteFile);
+		pc = -1;
+		transferring = remoteFile;
+		total = bytesTotal;
+	}
+
+	@Override
+	public boolean isCancelled() {
+		return false;
+	}
+
+	@Override
+	public void progressed(long bytesSoFar) {
+		int tpc = (int)(((double)bytesSoFar / (double)total ) * 100d);
+		if(tpc != pc) {
+			pc = tpc;
+			getLog().info(pc + "% complete");
+		}
+	}
+
+	@Override
+	public void completed() {
+		getLog().info("Transferred " + transferring);
+	}
 }
