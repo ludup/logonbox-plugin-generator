@@ -6,17 +6,14 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Parameter;
 
-import com.sshtools.client.SshClient;
-import com.sshtools.client.sftp.SftpClientTask;
-import com.sshtools.client.sftp.TransferCancelledException;
-import com.sshtools.client.tasks.FileTransferProgress;
-import com.sshtools.common.logger.Log;
-import com.sshtools.common.logger.Log.Level;
-import com.sshtools.common.permissions.PermissionDeniedException;
-import com.sshtools.common.sftp.SftpStatusException;
-import com.sshtools.common.ssh.SshException;
+import net.sf.sshapi.Ssh;
+import net.sf.sshapi.SshClient;
+import net.sf.sshapi.SshException;
+import net.sf.sshapi.SshFileTransferListener;
+import net.sf.sshapi.sftp.SftpClient;
+import net.sf.sshapi.util.SimplePasswordAuthenticator;
 
-public abstract class AbstractSSHUploadMojo extends AbstractBaseExtensionsMojo implements FileTransferProgress {
+public abstract class AbstractSSHUploadMojo extends AbstractBaseExtensionsMojo implements SshFileTransferListener {
 
 	@Parameter(property = "sshupload.host", required = true, defaultValue = "packager.hypersocket.io")
 	protected String host;
@@ -35,59 +32,47 @@ public abstract class AbstractSSHUploadMojo extends AbstractBaseExtensionsMojo i
 	private int pc;
 
 	protected void onExecute() throws MojoExecutionException, MojoFailureException {
-		Log.getDefaultContext().enableConsole(Level.DEBUG);
 		
 		getLog().info("Uploading to SSH server");
-		try (SshClient ssh = new SshClient(host, port, username, password.toCharArray())) {
-			ssh.runTask(new SftpClientTask(ssh) {
-				protected void doSftp() {
-					try {
-						upload(this);
-					} catch (IOException | SshException | SftpStatusException | TransferCancelledException
-							| PermissionDeniedException e) {
-						throw new IllegalStateException("Failed to upload.", e);
-					}
-				}
-			});
-		} catch (IOException | SshException sshe) {
+		try(SshClient client = Ssh.open(username, host, port, new SimplePasswordAuthenticator(password))) {
+			try(SftpClient sftp = client.sftp()) {
+				sftp.addFileTransferListener(this);
+				upload(sftp);
+			}
+		}
+		catch (IOException sshe) {
 			throw new MojoExecutionException("Failed to upload to SSH server.", sshe);
 		}
 		getLog().info("Uploaded to SSH server");
 	}
 
-	protected abstract void upload(SftpClientTask amazonS3) throws IOException, SshException, SftpStatusException,
-			TransferCancelledException, PermissionDeniedException;
+	protected abstract void upload(SftpClient amazonS3) throws IOException, SshException;
 
 	@Override
 	protected boolean isSnapshotVersionAsBuildNumber() {
 		return true;
-	}
-
+	} 
 
 	@Override
-	public void started(long bytesTotal, String remoteFile) {
-		getLog().info("Starting to transfer " + remoteFile);
+	public void startedTransfer(String sourcePath, String targetPath, long length) {
+		getLog().info("Starting to transfer " + sourcePath);
 		pc = -1;
-		transferring = remoteFile;
-		total = bytesTotal;
+		transferring = sourcePath;
+		total = length;
 	}
 
 	@Override
-	public boolean isCancelled() {
-		return false;
-	}
-
-	@Override
-	public void progressed(long bytesSoFar) {
-		int tpc = (int)(((double)bytesSoFar / (double)total ) * 100d);
+	public void transferProgress(String sourcePath, String targetPath, long progress) {
+		int tpc = (int)(((double)progress / (double)total ) * 100d);
 		if(tpc != pc) {
 			pc = tpc;
 			getLog().info(pc + "% complete");
 		}
+		
 	}
 
 	@Override
-	public void completed() {
+	public void finishedTransfer(String sourcePath, String targetPath) {
 		getLog().info("Transferred " + transferring);
 	}
 }
