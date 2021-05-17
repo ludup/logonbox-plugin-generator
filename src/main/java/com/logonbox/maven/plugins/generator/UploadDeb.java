@@ -37,9 +37,13 @@ public class UploadDeb extends AbstractSSHUploadMojo {
 	@Parameter(defaultValue = "${project.build.directory}", property = "upload-deb.source", required = true)
 	protected File source;
 
+	@Parameter(defaultValue = "${project.build.directory}", property = "upload-deb.dir", required = true)
+	protected File dir;
+
 	@Override
 	protected void upload(SftpClientTask ssh) throws IOException, SshException, SftpStatusException, TransferCancelledException, PermissionDeniedException {
 		ssh.cd(repository + "/" + codename);
+		ssh.lcd(dir.getAbsolutePath());
 		ssh.putFiles(source.getPath() + "/*.deb");
 	}
 
