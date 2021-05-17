@@ -9,6 +9,8 @@ import org.apache.maven.plugins.annotations.Parameter;
 import com.sshtools.client.SshClient;
 import com.sshtools.client.sftp.SftpClientTask;
 import com.sshtools.client.sftp.TransferCancelledException;
+import com.sshtools.common.logger.Log;
+import com.sshtools.common.logger.Log.Level;
 import com.sshtools.common.permissions.PermissionDeniedException;
 import com.sshtools.common.sftp.SftpStatusException;
 import com.sshtools.common.ssh.SshException;
@@ -28,7 +30,8 @@ public abstract class AbstractSSHUploadMojo extends AbstractBaseExtensionsMojo {
 	protected String password;
 
 	protected void onExecute() throws MojoExecutionException, MojoFailureException {
-
+		Log.getDefaultContext().enableConsole(Level.DEBUG);
+		
 		getLog().info("Uploading to SSH server");
 		try (SshClient ssh = new SshClient(host, port, username, password.toCharArray())) {
 			ssh.runTask(new SftpClientTask(ssh) {
