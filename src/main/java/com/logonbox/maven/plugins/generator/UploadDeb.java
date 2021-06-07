@@ -41,7 +41,7 @@ public class UploadDeb extends AbstractSSHUploadMojo {
 	protected void upload(SftpClient sftp) throws IOException, SshException {
 		for (File file : source.listFiles()) {
 			if (file.getName().endsWith(".deb")) {
-				sftp.put(file, repository + "/" + codename);
+				sftp.put(file, sftp.getDefaultPath()  + "/" + repository + "/" + codename + "/" + file.getName());
 			}
 		}
 	}
