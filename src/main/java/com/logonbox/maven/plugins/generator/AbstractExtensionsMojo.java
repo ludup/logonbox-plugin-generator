@@ -2,7 +2,9 @@ package com.logonbox.maven.plugins.generator;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
@@ -12,11 +14,25 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.apache.commons.io.FileUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.handler.ArtifactHandler;
 import org.apache.maven.artifact.handler.manager.ArtifactHandlerManager;
@@ -43,6 +59,9 @@ import org.apache.maven.shared.transfer.dependencies.DependableCoordinate;
 import org.apache.maven.shared.transfer.dependencies.resolve.DependencyResolver;
 import org.apache.maven.shared.transfer.dependencies.resolve.DependencyResolverException;
 import org.codehaus.plexus.util.StringUtils;
+import org.w3c.dom.Document;
+
+import edu.emory.mathcs.backport.java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Resolves and downloads all of a projects extensions and place the resulting
@@ -160,6 +179,9 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 	 */
 	@Parameter(property = "extensions.checksumPolicy")
 	private String checksumPolicy;
+
+	@Parameter(defaultValue = "true")
+	protected boolean processExtensionVersions;
 
 	protected Set<String> artifactsDone = new HashSet<>();
 
@@ -279,7 +301,7 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 		return artifact.getArtifactId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion() + (artifact.getClassifier() == null ? "" : ":" + artifact.getClassifier());
 	}
 
-	protected void copy(Path p1, Path p2, Instant mod) throws IOException {
+	protected Path copy(Path p1, Path p2, Instant mod) throws IOException {
 		getLog().info("Copying " + p1 + " to " + p2);
 		Files.createDirectories(p2.getParent());
 		if (Files.isSymbolicLink(p1)) {
@@ -290,6 +312,7 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 			}
 		}
 		Files.setLastModifiedTime(p2, FileTime.from(mod));
+		return p2;
 	}
 
 	protected String getFileName(Artifact a, boolean includeVersion, boolean includeClassifier) {
@@ -381,10 +404,220 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 		return layout;
 	}
 
+	protected Path processVersionsInExtensionArchives(Artifact artifact, Path extensionZip) throws IOException {
+		if(processExtensionVersions && "extension-archive".equals(artifact.getClassifier()) && "zip".equals(artifact.getType())) {
+			Path tmpDir = Files.createTempDirectory("ext");
+			try {
+				unzip(extensionZip, tmpDir);
+				AtomicInteger counter = new AtomicInteger();
+				Files.find(tmpDir, Integer.MAX_VALUE, (filePath, fileAttr) -> fileAttr.isRegularFile()
+						&& filePath.getFileName().toString().toLowerCase().endsWith(".jar")).forEach((file) -> {
+							/* We have something that is possibly an extension jar. 
+							 * So we peek inside, and see if there is an extension.def
+							 * resource. 
+							 */
+							getLog().debug(String.format("Checking if %s is an extension.", file));
+							try {
+								Path jarTmpDir = Files.createTempDirectory("jar");
+								try {
+									unzip(file, jarTmpDir);
+									
+									/* Is there a manifest? */
+									Path jarManifest = jarTmpDir.resolve("META-INF").resolve("MANIFEST.MF");
+									if(Files.exists(jarManifest)) {
+										/* There is a MANIFEST.MF, is it a hypersocket extension? */
+										Manifest mf;
+										try(InputStream in = Files.newInputStream(jarManifest)) {
+											mf = new Manifest(in);
+										}
+										String jarExtensionVersion = mf.getMainAttributes().getValue("X-Extension-Version");
+										if(jarExtensionVersion == null) {
+											/* This is not a hypersocket extension, skip */
+											getLog().debug(String.format("Not an extension, %s has no X-Extension-Version MANIFEST.MF entry.", file));
+											return;
+										}
+										
+										/* This is an extension, inject the build number */
+										String newJarExtensionVersion = getVersion(true, jarExtensionVersion);
+										mf.getMainAttributes().putValue("X-Extension-Version", newJarExtensionVersion);
+										getLog().info(String.format("Adjusted version in %s from %s to %s.", file, jarExtensionVersion, newJarExtensionVersion));
+										
+										/* Rewrite the manifest */
+										try(OutputStream out = Files.newOutputStream(jarManifest)) {
+											mf.write(out);
+										}
+										
+										/* Look for Maven metadata to update */
+										Path maven = jarTmpDir.resolve("META-INF").resolve("maven");
+										Files.find(maven, Integer.MAX_VALUE, (filePath, fileAttr) -> filePath.getFileName().toString().equals("pom.xml") || filePath.getFileName().toString().equals("pom.properties")).forEach((mavenFile) -> {
+											if(mavenFile.getFileName().toString().equals("pom.xml")) {
+									    		DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();
+									    		try {
+										            DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();
+										            Document doc;
+													try(InputStream docIn = Files.newInputStream(mavenFile)) {
+											            doc = docBuilder.parse (docIn);
+													}
+										            doc.getDocumentElement().getElementsByTagName("version").item(0).setTextContent(newJarExtensionVersion);
+										            
+										            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+										            Transformer transformer = transformerFactory.newTransformer();
+										            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+										            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
+										            DOMSource source = new DOMSource(doc);
+										            try(Writer writer = Files.newBufferedWriter(mavenFile)) {
+										            	StreamResult result = new StreamResult(writer);
+										            	transformer.transform(source, result);
+										            }
+									    		}
+												catch(Exception ioe) {
+													throw new IllegalStateException("Failed to rewrite pom.properties");
+												}
+									            
+											}
+											else if(mavenFile.getFileName().toString().equals("pom.properties")) {
+												Properties properties = new Properties();
+												try(InputStream propertiesIn = Files.newInputStream(mavenFile)) {
+													properties.load(propertiesIn);
+												}
+												catch(IOException ioe) {
+													throw new IllegalStateException("Failed to rewrite pom.properties");
+												}
+												properties.put("version", newJarExtensionVersion);
+												try(OutputStream propertiesOut= Files.newOutputStream(mavenFile)) {
+													properties.store(propertiesOut, "Processed by logonbox-plugin-generator");
+												}
+												catch(IOException ioe) {
+													throw new IllegalStateException("Failed to rewrite pom.properties");
+												}
+											}
+										});
+										
+										/* Re-pack the jar, also using the new version number
+										 * in the filename */
+										Path newFile = file.getParent().resolve(file.getFileName().toString().replace(jarExtensionVersion, newJarExtensionVersion));
+										getLog().debug(String.format("New file is %s.", newFile));
+										zip(newFile, jarTmpDir);
+										
+										/* Delete the old file */
+										if(!newFile.equals(file)) {
+											Files.delete(file);
+										}
+										
+										
+										counter.incrementAndGet();
+									}
+									else {
+										/* There is not, skip this one */
+										getLog().debug(String.format("Not an extension, %s has no MANIFEST.MF.", file));
+										return;
+									}
+								}
+								finally {
+									FileUtils.deleteDirectory(jarTmpDir.toFile());
+								}				
+							}
+							catch(IOException ioe) {
+								throw new IllegalStateException("Failed to process extension archive jars.", ioe);
+							}
+						});
+				
+				/* Re-pack the extension zip */
+				if(counter.get() > 0) {
+					zip(extensionZip, tmpDir);
+				}
+				else
+					getLog().debug(String.format("No jars processed in %s", extensionZip));
+			}
+			finally {
+				FileUtils.deleteDirectory(tmpDir.toFile());
+			}
+		}
+		return extensionZip;
+	}
+
 	/**
 	 * @return {@link #skip}
 	 */
 	protected boolean isSkip() {
 		return skip;
+	}
+
+	
+	public void zip(Path zipFile, Path directoryToZip) throws IOException {
+		getLog().debug(String.format("Zipping %s from %s", zipFile, directoryToZip));
+        try(ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(zipFile))) {
+			Files.find(directoryToZip, Integer.MAX_VALUE, (filePath, fileAttr) -> true).forEach((file) -> {
+				Path relpath = directoryToZip.relativize(file);
+				try {
+					if(Files.isDirectory(file)) {
+		                zos.putNextEntry(new ZipEntry(relpath.toString() + "/"));
+		                zos.closeEntry();
+					}
+					else {
+						try(InputStream in = Files.newInputStream(file)) {
+							ZipEntry entry = new ZipEntry(relpath.toString());
+					        zos.putNextEntry(entry);
+					        byte[] bytes = new byte[1024];
+					        int length;
+					        while ((length = in.read(bytes)) >= 0) {
+					            zos.write(bytes, 0, length);
+					        }
+						}
+					}
+				}
+				catch(IOException ioe) {
+					throw new IllegalStateException("Failed to re-zip adjusted extension archive.");
+				}
+			});
+        }
+    }
+	
+	public void unzip(Path zip, Path destDir) throws IOException {
+		getLog().debug(String.format("Unzipping %s to %s", zip, destDir));
+		byte[] buffer = new byte[1024];
+		try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zip))) {
+			ZipEntry zipEntry = zis.getNextEntry();
+			while (zipEntry != null) {
+				Path newFile = newFile(destDir, zipEntry);
+				if(getLog().isDebugEnabled())
+					getLog().debug(String.format("  Entry: %s (%s)", zipEntry.getName(), zipEntry.isDirectory() ? "Dir" : "File"));
+				if (zipEntry.isDirectory()) {
+					if (!Files.isDirectory(newFile)) {
+						Files.createDirectories(newFile);
+					}
+				} else {
+					Path parent = newFile.getParent();
+					if (!Files.isDirectory(parent)) {
+						if(getLog().isDebugEnabled())
+							getLog().debug(String.format("  Need to create parent: %s (ex: %s dir: %s, file: %s)", parent, Files.exists(parent), Files.isDirectory(parent), Files.isRegularFile(parent)));  
+						Files.createDirectories(parent);
+					}
+
+					// write file content
+					OutputStream fos = Files.newOutputStream(newFile);
+					int len;
+					while ((len = zis.read(buffer)) > 0) {
+						fos.write(buffer, 0, len);
+					}
+					fos.close();
+				}
+				zipEntry = zis.getNextEntry();
+			}
+			zis.closeEntry();
+		}
+	}
+	
+	public static Path newFile(Path destinationDir, ZipEntry zipEntry) throws IOException {
+		Path destFile = destinationDir.resolve(zipEntry.getName());
+
+	    String destDirPath = destinationDir.toFile().getCanonicalPath();
+	    String destFilePath = destFile.toFile().getCanonicalPath();
+
+	    if (!destFilePath.startsWith(destDirPath + File.separator)) {
+	        throw new IOException("Entry is outside of the target dir: " + zipEntry.getName());
+	    }
+
+	    return destFile;
 	}
 }

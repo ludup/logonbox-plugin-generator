@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -128,17 +129,18 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 
 	@Override
 	protected void doHandleResult(ArtifactResult result) throws MojoExecutionException {
-		File file = result.getArtifact().getFile();
+		Artifact artifact = result.getArtifact();
+		File file = artifact.getFile();
 		if (file == null || !file.exists()) {
-			getLog().warn("Artifact " + result.getArtifact().getArtifactId()
+			getLog().warn("Artifact " + artifact.getArtifactId()
 					+ " has no attached file. Its content will not be copied in the target model directory.");
 			return;
 		}
 
 		Path extensionZip = file.toPath();
 		try {
-			Path target = checkDir(output.toPath()).resolve(getFileName(result.getArtifact(), includeVersion, false));
-			copy(extensionZip, target, Files.getLastModifiedTime(extensionZip).toInstant());
+			Path target = checkDir(output.toPath()).resolve(getFileName(artifact, includeVersion, false));
+			processVersionsInExtensionArchives(artifact, copy(extensionZip, target, Files.getLastModifiedTime(extensionZip).toInstant()));
 		} catch (IOException e) {
 			throw new MojoExecutionException("Failed to copy extension to staging area.", e);
 		}

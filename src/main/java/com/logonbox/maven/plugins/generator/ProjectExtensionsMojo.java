@@ -83,7 +83,7 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 			String fileName = getFileName(a.getArtifactId(), getArtifactVersion(a, true), a.getClassifier(), a.getType(), includeVersion,
 					false);
 			Path target = checkDir(artifactPath).resolve(fileName);
-			copy(extensionZip, target, Files.getLastModifiedTime(extensionZip).toInstant());
+			processVersionsInExtensionArchives(a, copy(extensionZip, target, Files.getLastModifiedTime(extensionZip).toInstant()));
 		} catch (IOException e) {
 			throw new MojoExecutionException("Failed to copy extension to staging area.", e);
 		}

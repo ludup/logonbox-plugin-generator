@@ -42,31 +42,35 @@ public abstract class AbstractBaseExtensionsMojo extends AbstractMojo {
 	protected String getArtifactVersion(Artifact artifact, boolean processSnapshotVersions) {
 		String v = artifact.getVersion();
 		if (artifact.isSnapshot()) {
-			if (v.contains("-SNAPSHOT") || !processSnapshotVersions)
-				if(v.contains("-SNAPSHOT"))
-					return v.substring(0, v.indexOf("-SNAPSHOT")) + "-" + getSnapshotVersionSuffix();
-				else
+			return getVersion(processSnapshotVersions, v);
+		} else
+			return v;
+	}
+
+	protected String getVersion(boolean processSnapshotVersions, String v) {
+		if (v.contains("-SNAPSHOT") || !processSnapshotVersions)
+			if(v.contains("-SNAPSHOT"))
+				return v.substring(0, v.indexOf("-SNAPSHOT")) + "-" + getSnapshotVersionSuffix();
+			else
 				return v;
-			else {
-				int idx = v.lastIndexOf("-");
-				if (idx == -1) {
+		else {
+			int idx = v.lastIndexOf("-");
+			if (idx == -1) {
+				return v;
+			} else {
+				idx = v.lastIndexOf(".", idx - 1);
+				if (idx == -1)
 					return v;
-				} else {
-					idx = v.lastIndexOf(".", idx - 1);
+				else {
+					idx = v.lastIndexOf("-", idx - 1);
 					if (idx == -1)
 						return v;
 					else {
-						idx = v.lastIndexOf("-", idx - 1);
-						if (idx == -1)
-							return v;
-						else {
-							return v.substring(0, idx) + "-" + getSnapshotVersionSuffix();
-						}
+						return v.substring(0, idx) + "-" + getSnapshotVersionSuffix();
 					}
 				}
 			}
-		} else
-			return v;
+		}
 	}
 
 	protected final String getSnapshotVersionSuffix() {
