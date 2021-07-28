@@ -97,11 +97,11 @@
 	<distributionManagement>
 		<repository>
 			<id>libs-releases</id>
-			<url>http://artifactory.javassh.com/libs-releases-local</url>
+			<url>https://artifactory.jdaptive.com/libs-releases-local</url>
 		</repository>
 		<snapshotRepository>
 			<id>libs-snapshots</id>
-			<url>http://artifactory.javassh.com/libs-snapshots-local</url>
+			<url>https://artifactory.jdaptive.com/libs-snapshots-local</url>
 		</snapshotRepository>
 	</distributionManagement>
 

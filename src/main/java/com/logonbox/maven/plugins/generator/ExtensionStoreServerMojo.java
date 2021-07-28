@@ -7,10 +7,14 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import javax.json.Json;
 import javax.json.JsonArrayBuilder;
@@ -18,6 +22,7 @@ import javax.json.JsonObjectBuilder;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -32,6 +37,7 @@ import org.sonatype.inject.Description;
 
 import com.logonbox.maven.plugins.generator.MiniHttpServer.DynamicContent;
 import com.logonbox.maven.plugins.generator.MiniHttpServer.DynamicContentFactory;
+import com.logonbox.maven.plugins.generator.MiniHttpServer.Log;
 import com.logonbox.maven.plugins.generator.MiniHttpServer.Method;
 
 /**
@@ -103,6 +109,28 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 			}
 
 			server = new MiniHttpServer(port, -1, null);
+			MiniHttpServer.setLOG(new Log() {
+
+				@Override
+				public void info(String message) {
+					getLog().info(message);					
+				}
+
+				@Override
+				public void error(String message) {
+					getLog().error(message);
+				}
+
+				@Override
+				public void error(String message, Throwable exception) {
+					getLog().error(message, exception);					
+				}
+
+				@Override
+				public void debug(String message) {
+					getLog().debug(message);					
+				}
+			});
 			server.addContent(new DynamicContentFactory() {
 				@Override
 				public DynamicContent get(Method method, String path, Map<String, List<String>> headers, InputStream in)
@@ -161,7 +189,7 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 		return true;
 	}
 
-	DynamicContent store(String version, String target) throws UnsupportedEncodingException {
+	DynamicContent store(String version, String target) throws IOException {
 		// private String filename;
 		// private String repository;
 		// private String featureGroup;
@@ -173,15 +201,16 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 			Extension extension = en.getValue();
 			Artifact artifact = extension.artifact;
 			String artifactVersion = getArtifactVersion(artifact);
-			getLog().debug(String.format("Comparing versions: %s and %s", version, artifactVersion));
-			if (version.equals(artifactVersion)) {
+			String unprocessedArtifactVersion = artifact.getVersion();
+			getLog().debug(String.format("Comparing versions: %s and %s (%s)", version, artifactVersion, unprocessedArtifactVersion));
+//			if (version.equals(artifactVersion) || version.equals(unprocessedArtifactVersion)) {
 				File file = artifact.getFile();
 				resource.add("size", file.length());
 				resource.add("url", en.getKey());
 				resource.add("filename", FilenameUtils.getName(en.getKey()));
 				resource.add("repositoryDescription", description);
 				resource.add("modifiedDate", file.lastModified());
-				resource.add("version", getArtifactVersion(extension.artifact));
+				resource.add("version", artifactVersion);
 				resource.add("hash", extension.hash);
 				resource.add("extensionId", artifact.getArtifactId());
 				resource.add("state", "NOT_INSTALLED");
@@ -189,14 +218,20 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 				resource.add("mandatory", false);
 				resource.add("weight", 0);
 				resource.add("tab", tab);
-
-				// TODO (get from POM? or extension.def?)
-				resource.add("description", artifact.getGroupId() + ":" + artifact.getArtifactId());
-				resource.add("extensionName", artifact.getArtifactId());
-				resource.add("dependsOn", Json.createArrayBuilder());
+				Properties def = getExtensionDefinition(artifact);
+				resource.add("description",
+						def.containsKey("extension.description") ? def.getProperty("extension.description")
+								: artifact.getGroupId() + ":" + artifact.getArtifactId());
+				resource.add("extensionName", def.containsKey("extension.name") ? def.getProperty("extension.name")
+						: artifact.getArtifactId());
+				resource.add("dependsOn",
+						def.containsKey("extension.depends")
+								? Json.createArrayBuilder(
+										Arrays.asList(def.getProperty("extension.depends").split(",")))
+								: Json.createArrayBuilder());
 
 				resources.add(resource);
-			}
+//			}
 
 		}
 
@@ -216,5 +251,28 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 				.add("publicPhase", true).add("name", "developer"));
 
 		return resourcesResponse(resources);
+	}
+	
+	static Properties getExtensionDefinition(Artifact artifact) throws IOException {
+		Properties p = new Properties();
+		try (ZipInputStream zis = new ZipInputStream(new FileInputStream(artifact.getFile()))) {
+			ZipEntry zipEntry = zis.getNextEntry();
+			while (zipEntry != null) {
+				if(zipEntry.getName().endsWith("/extension.def")) {
+					p.load(zis);
+					break;
+				}
+				else if(zipEntry.getName().endsWith("/")) {
+					// skip
+				}
+				else {
+					// sink
+					IOUtils.skip(zis, Long.MAX_VALUE);
+				}
+				zipEntry = zis.getNextEntry();
+			}
+			zis.closeEntry();
+		}
+		return p;
 	}
 }

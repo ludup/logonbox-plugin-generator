@@ -24,6 +24,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
+import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
@@ -246,7 +247,30 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 					File sourceDef = new File(project.getBasedir(),
 							"target" + File.separator + "classes" + File.separator + "extension.def");
 					File destDef = new File(extensionDef, project.getArtifactId() + ".def");
-					FileUtils.copyFile(sourceDef, destDef);
+					Properties sourceProperties = new Properties();
+					try(InputStream pin = new FileInputStream(sourceDef)) {
+						sourceProperties.load(pin);
+					}
+					if(!sourceProperties.containsKey("extension.description")) {
+						sourceProperties.setProperty("extension.description", project.getDescription() == null ? ( project.getName() == null ? "" : project.getName() ): project.getDescription());
+					}
+					if(!sourceProperties.containsKey("extension.name")) {
+						sourceProperties.setProperty("extension.name", project.getName() == null ? "" : project.getName());
+					}
+					try(OutputStream pin = new FileOutputStream(destDef)) {
+						sourceProperties.store(pin, "Processed by logonbox-plugin-generator");
+					}
+					
+// TODO can we generate some others from POM information? license for example
+//					extension.id=x-hypersocket-brand
+//							extension.depends=server-core
+//							extension.image=hypersocket.png
+//							extension.license=Commercial
+//							extension.licenseUrl=/webapp/licenses/EULA.txt
+//							extension.vendor=Hypersocket Limited
+//							extension.url=http://www.hypersocket.com
+//							extension.weight=2000
+//							extension.system=false
 
 					File sourceI18n = new File(project.getBasedir(),
 							"target" + File.separator + "classes" + File.separator + "i18n");
@@ -254,16 +278,11 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 
 					FileUtils.copyDirectory(sourceI18n, destI18n, project.getArtifactId() + "*", null);
 
-					Properties props = new Properties();
-					try(FileInputStream fin = new FileInputStream(sourceDef)) {
-						props.load(fin);
-					}
-
 					File sourceImage = new File(project.getBasedir(), "target" + File.separator + "classes"
-							+ File.separator + props.getProperty("extension.image"));
+							+ File.separator + sourceProperties.getProperty("extension.image"));
 
 					if (sourceImage.exists()) {
-						File destImage = new File(extensionDef, props.getProperty("extension.image"));
+						File destImage = new File(extensionDef, sourceProperties.getProperty("extension.image"));
 						FileUtils.copyFile(sourceImage, destImage);
 					}
 
@@ -274,6 +293,13 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 
 						ZipEntry e = new ZipEntry(project.getArtifactId() + "/");
 						zip.putNextEntry(e);
+
+						e = new ZipEntry(project.getArtifactId() + "/extension.def");
+						zip.putNextEntry(e);
+						try(FileInputStream fin = new FileInputStream(destDef)) {
+							IOUtil.copy(fin, zip);
+						}
+						zip.closeEntry();
 
 						List<Artifact> artifacts = new ArrayList<>();
 

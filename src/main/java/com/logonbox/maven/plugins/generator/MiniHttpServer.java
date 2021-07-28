@@ -37,10 +37,38 @@ import javax.net.ssl.SSLServerSocketFactory;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class MiniHttpServer extends Thread implements Closeable {
+	
+	public interface Log {
+		void info(String message);
+		void error(String message);
+		void error(String message, Throwable exception);
+		void debug(String message);
+	}
+	
+	public static class DefaultLog implements Log {
+		public void debug(String message) {
+			System.out.println("DEBUG:MiniHttpServer:" + message);
+		}
+		
+		public void info(String message) {
+			System.out.println("INFO:MiniHttpServer:" + message);
+		}
+
+		@Override
+		public void error(String message) {
+			error(message, null);
+		}
+
+		@Override
+		public void error(String message, Throwable exception) {
+			if(message != null)
+				System.out.println("ERROR:MiniHttpServer:" + message);
+			if(exception != null)
+				exception.printStackTrace(System.out);
+		}
+	}
 
 	public static class DynamicContent {
 
@@ -113,7 +141,7 @@ public class MiniHttpServer extends Thread implements Closeable {
 
 	public static final String KEYSTORE_PASSWORD = "changeit";
 
-	private static Logger LOG = LoggerFactory.getLogger(MiniHttpServer.class);
+	private static Log LOG = new DefaultLog();
 
 	private boolean caching = true;
 	private List<DynamicContentFactory> contentFactories = new ArrayList<>();
@@ -124,6 +152,14 @@ public class MiniHttpServer extends Thread implements Closeable {
 
 	public static final String HYPERSOCKET_BOOT_HTTP_SERVER = "hypersocket.bootHttpServer";
 	public static final String HYPERSOCKET_BOOT_HTTP_SERVER_DEFAULT = "true";
+
+	public static Log getLOG() {
+		return LOG;
+	}
+
+	public static void setLOG(Log lOG) {
+		LOG = lOG;
+	}
 
 	public MiniHttpServer(int http, int https, File keystoreFile) throws IOException {
 		super("MiniHttpServer");
@@ -250,7 +286,7 @@ public class MiniHttpServer extends Thread implements Closeable {
 						socket.getOutputStream().flush();
 					}
 				} catch (Exception e) {
-					LOG.info("Failed handling connection.", e);
+					LOG.error("Failed handling connection.", e);
 				}
 			}
 		} finally {
@@ -339,6 +375,7 @@ public class MiniHttpServer extends Thread implements Closeable {
 		}
 
 		Status status = null;
+		LOG.info("Handling " + path);
 		for (DynamicContentFactory c : contentFactories) {
 			DynamicContent content = null;
 			try {
@@ -417,7 +454,7 @@ public class MiniHttpServer extends Thread implements Closeable {
 				Socket connectionsocket = so.accept();
 				pool.execute(() -> connection(connectionsocket));
 			} catch (Exception e) {
-				LOG.info("Failed waiting for connection.", e);
+				LOG.error("Failed waiting for connection.", e);
 			}
 		}
 	}
