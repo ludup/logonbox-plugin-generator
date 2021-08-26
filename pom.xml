@@ -89,14 +89,6 @@
 	
 	<repositories>
         <repository>
-            <id>oss-snapshots</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-            <snapshots/>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-        </repository> 
-        <repository>
             <id>libs-snapshots-local</id>
             <url>https://oss.sonatype.org/content/repositories/libs-snapshots-local</url>
             <snapshots/>
@@ -104,6 +96,14 @@
                 <enabled>false</enabled>
             </releases>
         </repository>
+        <repository>
+            <id>oss-snapshots</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <snapshots/>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+        </repository> 
 	</repositories>
 
 	<distributionManagement>
