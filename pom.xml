@@ -90,7 +90,7 @@
 	<repositories>
         <repository>
             <id>libs-snapshots</id>
-            <url>https://oss.sonatype.org/content/repositories/libs-snapshots</url>
+            <url>https://oss.sonatype.org/content/repositories/libs-snapshots-local</url>
             <snapshots/>
             <releases>
                 <enabled>false</enabled>
