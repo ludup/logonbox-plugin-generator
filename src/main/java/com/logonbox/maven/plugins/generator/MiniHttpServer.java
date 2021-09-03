@@ -12,6 +12,7 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.KeyPair;
@@ -283,7 +284,13 @@ public class MiniHttpServer extends Thread implements Closeable {
 					InputStream input = socket.getInputStream();
 					try (OutputStream out = socket.getOutputStream()) {
 						handle(input, out);
-						socket.getOutputStream().flush();
+						try {
+							socket.getOutputStream().flush();
+						}
+						catch(SocketException e) {
+							if(!socket.isClosed())
+								throw e;
+						}
 					}
 				} catch (Exception e) {
 					LOG.error("Failed handling connection.", e);

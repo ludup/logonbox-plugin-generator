@@ -83,13 +83,18 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 	@Parameter(defaultValue = "/app", property = "extension-store.app-path")
 	private String appPath = "/app";
 
+	@Parameter(defaultValue = "", property = "extension-store.phase")
+	private String phaseName = "";
+
 	private MiniHttpServer server;
 	private Map<String, Extension> map = new HashMap<>();
+	private String actualPhaseName;
 
 	protected void onExecute() throws MojoExecutionException, MojoFailureException {
 		try {
 			
 			Set<Artifact> artifacts = project.getArtifacts();
+			String firstVersion = null;
 			for (Artifact artifact : artifacts) {
 				if (isProcessedGroup(artifact) && isJarExtension(artifact)) {
 					coordinate.setGroupId(artifact.getGroupId());
@@ -100,12 +105,32 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 
 					try {
 						doCoordinate();
+						firstVersion = artifact.getVersion();
 					} catch (MojoFailureException | DependencyResolverException | ArtifactResolverException e) {
 						getLog().debug("Failed to process an artifact, assuming it's not an extension.", e);
 					}
 				}
 				else
 					getLog().debug(artifact.getId() + " is not an extension");
+			}
+			
+			/* Calculate a phase name */
+			if(phaseName.equals("") || !phaseName.contains("_")) {
+				if(firstVersion == null) {
+					getLog().warn("No extensions being served, cannot determine a phase to use.");
+				}
+				else {
+					String[] parts = firstVersion.split("\\.");
+					if(phaseName.equals("")) {
+						actualPhaseName = "nightly" + parts[0] + "_" + parts[1] + "x";
+					}
+					else {
+						actualPhaseName += "_" + parts[0] + "_" + parts[1] + "x";
+					}
+				}
+			}
+			else {
+				actualPhaseName = phaseName;
 			}
 
 			server = new MiniHttpServer(port, -1, null);
@@ -159,6 +184,7 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 				}
 			});
 			getLog().info("Starting extension store server, press Ctrl+C to stop.");
+			getLog().info("Service phase: " + actualPhaseName);
 			server.run();
 		} catch (IOException ioe) {
 			throw new MojoExecutionException("Failed to start extension store server.", ioe);
@@ -248,7 +274,7 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 	DynamicContent handlePrivate() throws UnsupportedEncodingException {
 		JsonArrayBuilder resources = Json.createArrayBuilder();
 		resources.add(Json.createObjectBuilder().add("version", getArtifactVersion(project.getArtifact()))
-				.add("publicPhase", true).add("name", "developer"));
+				.add("publicPhase", true).add("name", actualPhaseName));
 
 		return resourcesResponse(resources);
 	}
