@@ -1,7 +1,9 @@
 package com.logonbox.maven.plugins.generator;
 
 import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLConnection;
 
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -32,11 +34,16 @@ public class PublishMojo extends AbstractBaseExtensionsMojo {
 			urlTxt = urlTxt.replace("[[majorMinorTag]]", String.format("%s_%s", versionParts[0], versionParts[1]));
 			urlTxt = urlTxt.replace("[[artifactVersion]]", artifactVersion);
 			URL url = new URL(urlTxt);
+			HttpURLConnection conx = (HttpURLConnection)url.openConnection();
 			getLog().info("Notify update server using " + url);
-			url.getContent();
-			getLog().info("Notified update server using " + url);
+			if(conx.getResponseCode() == 200) {
+				getLog().info("Notified update server using " + url);
+			}
+			else {
+				throw new IOException("Invalid response code " + conx.getResponseCode() + ". " + conx.getResponseMessage());
+			}
 		} catch (IOException ioe) {
-			throw new MojoExecutionException("Failed to notify update server of version " + artifactVersion);
+			throw new MojoExecutionException("Failed to notify update server of version " + artifactVersion, ioe);
 		}
 	}
 
