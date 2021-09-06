@@ -37,7 +37,8 @@ public class PublishMojo extends AbstractBaseExtensionsMojo {
 			HttpURLConnection conx = (HttpURLConnection)url.openConnection();
 			getLog().info("Notify update server using " + url);
 			if(conx.getResponseCode() == 200) {
-				getLog().info("Notified update server using " + url);
+				String content = conx.getContent().toString();
+				getLog().info("Notified update server using " + url + ". Reply " + content);
 			}
 			else {
 				throw new IOException("Invalid response code " + conx.getResponseCode() + ". " + conx.getResponseMessage());
