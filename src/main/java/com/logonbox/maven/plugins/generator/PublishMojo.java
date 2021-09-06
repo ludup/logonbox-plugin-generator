@@ -1,9 +1,9 @@
 package com.logonbox.maven.plugins.generator;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -12,6 +12,9 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.sonatype.inject.Description;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Public extension version to update server
@@ -37,8 +40,11 @@ public class PublishMojo extends AbstractBaseExtensionsMojo {
 			HttpURLConnection conx = (HttpURLConnection)url.openConnection();
 			getLog().info("Notify update server using " + url);
 			if(conx.getResponseCode() == 200) {
-				String content = conx.getContent().toString();
-				getLog().info("Notified update server using " + url + ". Reply " + content);
+				try(InputStream in = conx.getInputStream()) {
+					ObjectMapper mapper = new ObjectMapper();
+					JsonNode tree = mapper.readTree(in);
+					getLog().info("Notified update server using " + url + ". Reply " + tree);
+				}
 			}
 			else {
 				throw new IOException("Invalid response code " + conx.getResponseCode() + ". " + conx.getResponseMessage());
