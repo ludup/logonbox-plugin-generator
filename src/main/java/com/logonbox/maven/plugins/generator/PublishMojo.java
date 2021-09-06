@@ -1,5 +1,6 @@
 package com.logonbox.maven.plugins.generator;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -11,6 +12,7 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
+import org.apache.maven.shared.utils.io.IOUtil;
 import org.sonatype.inject.Description;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -41,13 +43,13 @@ public class PublishMojo extends AbstractBaseExtensionsMojo {
 			getLog().info("Notify update server using " + url);
 			if(conx.getResponseCode() == 200) {
 				try(InputStream in = conx.getInputStream()) {
-					ObjectMapper mapper = new ObjectMapper();
-					JsonNode tree = mapper.readTree(in);
-					String msg = tree.get("message").asText();
-					if(msg.indexOf("The operation completed successfully") == -1)
-						throw new IOException("The etension store returned an error. "  + msg);
-					else
-						getLog().info("Notified update server using " + url + ". Reply " + tree);
+					try(ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+						IOUtil.copy(in, out);
+						String result = out.toString();
+						if(result.startsWith("Failure"))
+							throw new IOException("The etension store returned an error. "  + result);
+					}
+					getLog().info("Notified update server using " + url);
 				}
 			}
 			else {
