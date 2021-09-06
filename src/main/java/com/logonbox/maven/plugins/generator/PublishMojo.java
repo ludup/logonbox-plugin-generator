@@ -43,7 +43,11 @@ public class PublishMojo extends AbstractBaseExtensionsMojo {
 				try(InputStream in = conx.getInputStream()) {
 					ObjectMapper mapper = new ObjectMapper();
 					JsonNode tree = mapper.readTree(in);
-					getLog().info("Notified update server using " + url + ". Reply " + tree);
+					String msg = tree.get("message").asText();
+					if(msg.indexOf("The operation completed successfully") == -1)
+						throw new IOException("The etension store returned an error. "  + msg);
+					else
+						getLog().info("Notified update server using " + url + ". Reply " + tree);
 				}
 			}
 			else {
