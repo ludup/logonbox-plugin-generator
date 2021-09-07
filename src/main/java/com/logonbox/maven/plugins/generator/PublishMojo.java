@@ -47,7 +47,7 @@ public class PublishMojo extends AbstractBaseExtensionsMojo {
 						IOUtil.copy(in, out);
 						String result = out.toString();
 						if(result.startsWith("Failure"))
-							throw new IOException("The etension store returned an error. "  + result);
+							throw new IOException("The extension store returned an error. "  + result);
 					}
 					getLog().info("Notified update server using " + url);
 				}
