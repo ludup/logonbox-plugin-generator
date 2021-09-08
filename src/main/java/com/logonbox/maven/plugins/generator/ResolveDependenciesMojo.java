@@ -46,8 +46,8 @@ import org.sonatype.inject.Description;
 @Description("Generates the dependencies for plugin generation")
 public class ResolveDependenciesMojo extends AbstractBaseExtensionsMojo {
 
-	@Parameter(property = "resolve.onlyPoms", defaultValue = "true")
-	private boolean onlyPoms = true;
+	@Parameter(property = "resolve.onlyPoms", defaultValue = "false")
+	private boolean onlyPoms = false;
 
 	protected static final String SEPARATOR = "/";
 
