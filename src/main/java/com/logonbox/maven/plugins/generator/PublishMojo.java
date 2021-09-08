@@ -15,9 +15,6 @@ import org.apache.maven.project.MavenProject;
 import org.apache.maven.shared.utils.io.IOUtil;
 import org.sonatype.inject.Description;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 /**
  * Public extension version to update server
  */

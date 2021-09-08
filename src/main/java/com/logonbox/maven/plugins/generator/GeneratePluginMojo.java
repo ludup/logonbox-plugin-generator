@@ -158,7 +158,7 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 
 			if (!allDependenciesFile.exists()) {
 				throw new MojoExecutionException(
-						"There is no dependency map to generate plugins. Did you execute resolve-dependencies goal first?");
+						"There is no dependency map '" + allDependenciesFile + "' to generate plugins. Did you execute resolve-dependencies goal first?");
 			}
 
 			/*

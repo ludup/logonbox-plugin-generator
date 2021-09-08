@@ -35,20 +35,28 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
+import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.sonatype.inject.Description;
 
 /**
  * Generates the dependencies properties file
  */
-@Mojo(threadSafe = true, name = "resolve-dependencies", defaultPhase = LifecyclePhase.COMPILE, requiresDependencyResolution = ResolutionScope.RUNTIME)
+@Mojo(threadSafe = true, name = "resolve-dependencies", defaultPhase = LifecyclePhase.COMPILE, requiresDependencyResolution = ResolutionScope.RUNTIME_PLUS_SYSTEM)
 @Description("Generates the dependencies for plugin generation")
 public class ResolveDependenciesMojo extends AbstractBaseExtensionsMojo {
+
+	@Parameter(property = "resolve.onlyPoms", defaultValue = "true")
+	private boolean onlyPoms = true;
 
 	protected static final String SEPARATOR = "/";
 
 	protected void onExecute() throws MojoExecutionException, MojoFailureException {
-
+		if (onlyPoms && !project.getPackaging().equalsIgnoreCase("pom")) {
+			getLog().info("Ignoring non-pom type of artifact " + project.getPackaging());
+			return;
+		}
+		
 		File outputFile = new File(project.getBasedir(), "target" + File.separator + "dependencies.ser");
 		outputFile.getParentFile().mkdirs();
 
