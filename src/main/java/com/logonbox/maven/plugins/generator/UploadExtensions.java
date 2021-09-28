@@ -9,6 +9,7 @@ import org.apache.maven.project.MavenProject;
 import org.sonatype.inject.Description;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.transfer.MultipleFileUpload;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
@@ -33,7 +34,7 @@ public class UploadExtensions extends AbstractS3UploadMojo {
 	protected AmazonS3 upload(AmazonS3 amazonS3) {
 
 		TransferManager xfer_mgr = TransferManagerBuilder.standard().withS3Client(amazonS3).build();
-		MultipleFileUpload xfer = xfer_mgr.uploadDirectory(bucketName, keyPrefix, extensions, true);
+		MultipleFileUpload xfer = xfer_mgr.uploadDirectory(bucketName, keyPrefix, extensions, true, null, null, (f) -> CannedAccessControlList.PublicRead);
 		try {
 			XferMgrProgress.showTransferProgress(xfer);
 		} finally {

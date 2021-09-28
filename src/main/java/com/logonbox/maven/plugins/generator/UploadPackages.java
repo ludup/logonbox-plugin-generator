@@ -14,6 +14,7 @@ import org.apache.maven.shared.utils.io.FileUtils;
 import org.sonatype.inject.Description;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.transfer.MultipleFileUpload;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
@@ -42,7 +43,7 @@ public class UploadPackages extends AbstractS3UploadMojo {
 			getLog().info("Uploading " + file + " to " + bucketName + "@" + keyPrefix);
 			TransferManager xfer_mgr = TransferManagerBuilder.standard().withS3Client(amazonS3).build();
 			if(file.isFile()) {
-				MultipleFileUpload xfer = xfer_mgr.uploadFileList(bucketName, keyPrefix, file.getParentFile(),  Arrays.asList(file));
+				MultipleFileUpload xfer = xfer_mgr.uploadFileList(bucketName, keyPrefix, file.getParentFile(),  Arrays.asList(file), null, null, (f) -> CannedAccessControlList.PublicRead);
 				try {
 					XferMgrProgress.showTransferProgress(xfer);
 				} finally {
