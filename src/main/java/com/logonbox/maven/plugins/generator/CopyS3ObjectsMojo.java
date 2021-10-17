@@ -9,6 +9,8 @@ import org.apache.maven.project.MavenProject;
 import org.sonatype.inject.Description;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.CopyObjectRequest;
 
 /**
  * Copy objects on S3.
@@ -41,7 +43,10 @@ public class CopyS3ObjectsMojo extends AbstractS3UploadMojo {
 		if(destinationBucketName == null || destinationBucketName.length() == 0)
 			destinationBucketName = sourceBucketName;
 		getLog().info(String.format("Copying %s/%s to %s/%s", sourceBucketName, sourceKey, destinationBucketName, destinationKey));
-		amazonS3.copyObject(sourceBucketName, sourceKey, destinationBucketName, destinationKey);
+		//amazonS3.copyObject(sourceBucketName, sourceKey, destinationBucketName, destinationKey);
+		CopyObjectRequest copy = new CopyObjectRequest(sourceBucketName, sourceKey, destinationBucketName, destinationKey);
+		copy.setCannedAccessControlList(CannedAccessControlList.PublicRead);
+		amazonS3.copyObject(copy);
 		return amazonS3;
 	}
 
