@@ -19,6 +19,8 @@ import org.apache.maven.shared.transfer.dependencies.DefaultDependableCoordinate
 import org.apache.maven.shared.transfer.dependencies.resolve.DependencyResolverException;
 import org.codehaus.plexus.util.StringUtils;
 
+import edu.emory.mathcs.backport.java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * Resolves a list of artifacts artifact, eventually transitively, from the
  * specified remote repositories and place the resulting jars in a specific
@@ -28,23 +30,25 @@ import org.codehaus.plexus.util.StringUtils;
 public class GetArtifactsMojo extends AbstractExtensionsMojo {
 
 	/**
-	 * A string list of the form groupId:artifactId:[version[:packaging[:classifier]]].
+	 * A string list of the form
+	 * groupId:artifactId:[version[:packaging[:classifier]]].
 	 */
 	@Parameter(property = "get-artifacts.artifacts")
 	private List<String> artifacts;
 
 	/**
-	 * A single string of the form groupId:artifactId:[version[:packaging[:classifier]]]<SPACING>groupId:artifactId:[version[:packaging[:classifier]]]....
+	 * A single string of the form
+	 * groupId:artifactId:[version[:packaging[:classifier]]]<SPACING>groupId:artifactId:[version[:packaging[:classifier]]]....
 	 */
 	@Parameter(property = "get-artifacts.artifactList")
 	private String artifactList;
-	
+
 	/**
 	 * Default classifier
 	 */
 	@Parameter(property = "get-artifacts.defaultClassifer")
 	private String defaultClassifier;
-	
+
 	/**
 	 * Default classifier
 	 */
@@ -53,7 +57,7 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 
 	@Parameter(defaultValue = "true")
 	protected boolean snapshotVersionAsBuildNumber;
-	
+
 	/**
 	 * The maven project.
 	 * 
@@ -70,19 +74,19 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 			getLog().info("Skipping plugin execution");
 			return;
 		}
-		
+
 		List<String> allArtifacts = new ArrayList<>();
-		if(artifacts != null)
+		if (artifacts != null)
 			allArtifacts.addAll(artifacts);
-		if(artifactList != null) {
-			for(String a : artifactList.split("\\s+")) {
+		if (artifactList != null) {
+			for (String a : artifactList.split("\\s+")) {
 				a = a.trim();
-				if(!a.equals("")) {
+				if (!a.equals("")) {
 					allArtifacts.add(a);
 				}
 			}
 		}
-		
+
 		for (String artifact : allArtifacts) {
 			getLog().info("Getting " + artifact);
 			String[] tokens = StringUtils.split(artifact, ":");
@@ -94,26 +98,23 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 			coordinate.setArtifactId(tokens[1]);
 			if (tokens.length >= 3) {
 				coordinate.setVersion(tokens[2]);
-			}
-			else {
-				if(project != null)
+			} else {
+				if (project != null)
 					coordinate.setVersion(project.getVersion());
 				else
 					throw new MojoExecutionException("Need a project if not version is specified.");
 			}
-			
+
 			if (tokens.length >= 4) {
 				coordinate.setType(tokens[3]);
 				if (tokens.length == 5) {
 					coordinate.setClassifier(tokens[4]);
-				}
-				else {
-					if(defaultClassifier != null && defaultClassifier.length() > 0)
+				} else {
+					if (defaultClassifier != null && defaultClassifier.length() > 0)
 						coordinate.setClassifier(defaultClassifier);
 				}
-			}
-			else {
-				if(defaultType != null && defaultType.length() > 0)
+			} else {
+				if (defaultType != null && defaultType.length() > 0)
 					coordinate.setType(defaultType);
 			}
 
@@ -140,7 +141,14 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 		Path extensionZip = file.toPath();
 		try {
 			Path target = checkDir(output.toPath()).resolve(getFileName(artifact, includeVersion, false));
-			processVersionsInExtensionArchives(artifact, copy(extensionZip, target, Files.getLastModifiedTime(extensionZip).toInstant()));
+			if (processExtensionVersions && "extension-archive".equals(artifact.getClassifier())
+					&& "zip".equals(artifact.getType())) {
+				processVersionsInExtensionArchives(artifact,
+						copy(extensionZip, target, Files.getLastModifiedTime(extensionZip).toInstant()));
+			} else if (processExtensionVersions && "jar".equals(artifact.getType())) {
+				processVersionsInJarFile(new AtomicInteger(),
+						copy(extensionZip, target, Files.getLastModifiedTime(extensionZip).toInstant()));
+			}
 		} catch (IOException e) {
 			throw new MojoExecutionException("Failed to copy extension to staging area.", e);
 		}
