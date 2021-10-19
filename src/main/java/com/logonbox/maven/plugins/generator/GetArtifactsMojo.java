@@ -58,6 +58,9 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 	@Parameter(defaultValue = "true")
 	protected boolean snapshotVersionAsBuildNumber;
 
+	@Parameter(defaultValue = "true")
+	protected boolean includeClassifier;
+
 	/**
 	 * The maven project.
 	 * 
@@ -140,7 +143,7 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 
 		Path extensionZip = file.toPath();
 		try {
-			Path target = checkDir(output.toPath()).resolve(getFileName(artifact, includeVersion, false));
+			Path target = checkDir(output.toPath()).resolve(getFileName(artifact, includeVersion, includeClassifier));
 			if (processExtensionVersions && "extension-archive".equals(artifact.getClassifier())
 					&& "zip".equals(artifact.getType())) {
 				processVersionsInExtensionArchives(artifact,
