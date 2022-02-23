@@ -219,19 +219,6 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 			return groups.contains(artifact.getGroupId());
 	}
 
-	protected boolean isJarExtension(Artifact artifact) throws MojoExecutionException {
-		if ("jar".equals(artifact.getType())) {
-			try (JarFile jarFile = new JarFile(artifact.getFile())) {
-				if (jarFile.getEntry("extension.def") != null) {
-					return true;
-				}
-			} catch (IOException ioe) {
-				throw new MojoExecutionException("Failed to test for extension jar.", ioe);
-			}
-		}
-		return false;
-	}
-
 	protected abstract void doHandleResult(ArtifactResult result)
 			throws MojoExecutionException, DependencyResolverException, ArtifactResolverException, IOException;
 
@@ -392,6 +379,19 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 		artifactCoordinate.setClassifier(dependableCoordinate.getClassifier());
 		artifactCoordinate.setExtension(artifactHandler.getExtension());
 		return artifactCoordinate;
+	}
+
+	protected boolean matches(Artifact a, String key) {
+		String[] args = key.split(":");
+		if (args.length == 2) {
+			return (args[0].equals("") || a.getGroupId().equals(args[0]))
+					&& (args[1].equals("") || a.getArtifactId().equals(args[1]));
+		} else if (args.length == 3) {
+			return (args[0].equals("") || a.getGroupId().equals(args[0]))
+					&& (args[1].equals("") || a.getArtifactId().equals(args[1]))
+					&& (args[2].equals("") || args[2].equals(a.getClassifier()));
+		}
+		return a.getArtifactId().equals(key);
 	}
 
 	protected ArtifactRepositoryLayout getLayout(String id) throws MojoFailureException {

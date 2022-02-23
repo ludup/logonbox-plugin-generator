@@ -1,5 +1,8 @@
 package com.logonbox.maven.plugins.generator;
 
+import java.io.IOException;
+import java.util.jar.JarFile;
+
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -47,13 +50,23 @@ public abstract class AbstractBaseExtensionsMojo extends AbstractMojo {
 			return v;
 	}
 
-	protected String getVersion(boolean processSnapshotVersions, String v) {
-		if (v.contains("-SNAPSHOT") || !processSnapshotVersions)
-			if(v.contains("-SNAPSHOT"))
-				return v.substring(0, v.indexOf("-SNAPSHOT")) + "-" + getSnapshotVersionSuffix();
-			else
-				return v;
-		else {
+	protected boolean isJarExtension(Artifact artifact) {
+		if ("jar".equals(artifact.getType())) {
+			try (JarFile jarFile = new JarFile(artifact.getFile())) {
+				if (jarFile.getEntry("extension.def") != null) {
+					return true;
+				}
+			} catch (IOException ioe) {
+				throw new IllegalStateException("Failed to test for extension jar.", ioe);
+			}
+		}
+		return false;
+	}
+
+	protected String getVersion(boolean processTimestampedSnapshotVersions, String v) {
+		if (v.contains("-SNAPSHOT"))
+			return v.substring(0, v.indexOf("-SNAPSHOT")) + "-" + getSnapshotVersionSuffix();
+		else if(processTimestampedSnapshotVersions) {
 			int idx = v.lastIndexOf("-");
 			if (idx == -1) {
 				return v;
@@ -70,6 +83,9 @@ public abstract class AbstractBaseExtensionsMojo extends AbstractMojo {
 					}
 				}
 			}
+		}
+		else {
+			return v;
 		}
 	}
 
