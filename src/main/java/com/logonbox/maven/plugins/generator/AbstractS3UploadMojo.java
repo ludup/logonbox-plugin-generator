@@ -40,6 +40,10 @@ public abstract class AbstractS3UploadMojo extends AbstractBaseExtensionsMojo {
 		}
 		getLog().info("Upload to S3 complete");
 	}
+	
+	protected String getPublicURI() {
+		return "https://" + bucketName + ".s3." + region + ".amazonaws.com/" + keyPrefix;
+	}
 
 	protected AmazonS3 newClient() {
 		AWSCredentials creds = new BasicAWSCredentials(accessKey, secretKey);
