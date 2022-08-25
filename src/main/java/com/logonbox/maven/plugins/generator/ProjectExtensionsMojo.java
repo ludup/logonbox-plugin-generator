@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -85,10 +87,9 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 			Path target = checkDir(artifactPath).resolve(fileName);
 			getLog().debug("Process versions in artifact " + a.getArtifactId() + " to " + target);
 			runIfNeedVersionProcessedArchive(a, target, () -> {
-				try(var in = Files.newInputStream(extensionZip)) {
-					try(var out = Files.newOutputStream(target)) {
-						processVersionsInExtensionArchives(a, in, out);
-					}
+				try(var in = new ZipInputStream(Files.newInputStream(extensionZip)); 
+					var out = new ZipOutputStream(Files.newOutputStream(target))) {
+					processVersionsInExtensionArchives(a, in, out);
 				}	
 			}, Files.getLastModifiedTime(extensionZip));
 			

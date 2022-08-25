@@ -371,7 +371,7 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 
 			getLog().info("Adding project artifact " + project.getArtifact().getFile().getName());
 
-			e = new ZipEntry(project.getArtifactId() + "/" + project.getArtifact().getFile().getName());
+			e = new ZipEntry(project.getArtifactId() + "/" + project.getArtifact().getGroupId() + "-" + project.getArtifact().getArtifactId() + "." + project.getArtifact().getType());
 			zip.putNextEntry(e);
 
 			try (FileInputStream fin = new FileInputStream(project.getArtifact().getFile())) {
@@ -385,6 +385,7 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 
 				String artifactKey = ResolveDependenciesMojo.makeKey(a);
 				File resolvedFile = null;
+				String outName = null;
 
 				if (isExclude(a)) {
 					getLog().info("Artifact " + artifactKey + " is excluded");
@@ -413,8 +414,12 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 						}
 
 						resolvedFile = artifactMap.get(artifactKey);
+						outName = a.getGroupId() + "-" + a.getArtifactId()  + "." + a.getType();
 					}
 				}
+				
+				if(outName == null) 
+					outName = resolvedFile.getName();
 
 				if (!resolvedFile.exists()) {
 					getLog().warn(resolvedFile.getAbsolutePath() + " does not exist!");
@@ -455,9 +460,9 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 
 				} else {
 
-					getLog().info("Adding " + resolvedFile.getName() + " to plugin zip");
+					getLog().info("Adding " + outName + " to plugin zip");
 
-					String path = project.getArtifactId() + "/" + resolvedFile.getName();
+					String path = project.getArtifactId() + "/" + outName;
 
 					if (addedPaths.contains(path)) {
 						getLog().info("Already added " + path);

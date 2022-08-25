@@ -6,6 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -148,19 +150,17 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 					&& "zip".equals(artifact.getType())) {
 				getLog().debug("Process versions in extension artifact " + artifact.getArtifactId() + " to " + target);
 				runIfNeedVersionProcessedArchive(artifact, target, () -> {
-					try(var in = Files.newInputStream(extensionZip)) {
-						try(var out = Files.newOutputStream(target)) {
-							processVersionsInExtensionArchives(artifact, in, out);
-						}
+					try(var in = new ZipInputStream(Files.newInputStream(extensionZip)); 
+						var out = new ZipOutputStream(Files.newOutputStream(target))) {
+						processVersionsInExtensionArchives(artifact, in, out);
 					}
 				}, Files.getLastModifiedTime(extensionZip));
 			} else if (processExtensionVersions && "jar".equals(artifact.getType())) {
 				getLog().debug("Process versions in jar artifact " + artifact.getArtifactId() + " to " + target);
 				runIfNeedVersionProcessedArchive(artifact, target, () -> {
-					try(var in = Files.newInputStream(extensionZip)) {
-						try(var out = Files.newOutputStream(target)) {
-							processVersionsInJarFile(artifact, new AtomicInteger(), in, out);
-						}
+					try(var in = new ZipInputStream(Files.newInputStream(extensionZip)); 
+						var out = new ZipOutputStream(Files.newOutputStream(target))) {
+						processVersionsInJarFile(artifact, new AtomicInteger(), in, out);
 					}
 				}, Files.getLastModifiedTime(extensionZip));
 			}
