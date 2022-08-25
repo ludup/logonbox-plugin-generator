@@ -1,22 +1,21 @@
 package com.logonbox.maven.plugins.generator;
 
 import java.io.File;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -32,7 +31,6 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.handler.ArtifactHandler;
 import org.apache.maven.artifact.handler.manager.ArtifactHandlerManager;
@@ -69,6 +67,10 @@ import edu.emory.mathcs.backport.java.util.concurrent.atomic.AtomicInteger;
  */
 public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo {
 	
+	public interface IORunnable {
+		void run() throws IOException;
+	}
+	
 	protected static final String EXTENSION_ARCHIVE = "extension-archive";
 
 	private static final List<String> DEFAULT_GROUPS = Arrays.asList("com.hypersocket", "com.logonbox", "com.nervepoint", "com.sshtools", "com.jadaptive");
@@ -76,6 +78,8 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 
 	@Parameter(defaultValue = "${session}", required = true, readonly = true)
 	protected MavenSession session;
+	
+	static Map<Artifact, Path> lastVersionProcessed = new HashMap<>();
 
 	/**
 	 *
@@ -124,6 +128,8 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 	 */
 	@Parameter(property = "extensions.excludeClassifiers")
 	protected List<String> excludeClassifiers;
+	@Parameter(property = "extensions.copyOncePerRuntime", defaultValue = "true")
+	protected boolean copyOncePerRuntime = true;
 	/**
 	 * Which groups can contain extensions. This can massively speed up dependency 
 	 * by not needlessly contacting a Maven repository to determine if an artifact has
@@ -288,20 +294,6 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 		return artifact.getArtifactId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion() + (artifact.getClassifier() == null ? "" : ":" + artifact.getClassifier());
 	}
 
-	protected Path copy(Path p1, Path p2, Instant mod) throws IOException {
-		getLog().info("Copying " + p1 + " to " + p2);
-		Files.createDirectories(p2.getParent());
-		if (Files.isSymbolicLink(p1)) {
-			Files.createSymbolicLink(p2, Files.readSymbolicLink(p1));
-		} else {
-			try (OutputStream out = Files.newOutputStream(p2)) {
-				Files.copy(p1, out);
-			}
-		}
-		Files.setLastModifiedTime(p2, FileTime.from(mod));
-		return p2;
-	}
-
 	protected String getFileName(Artifact a, boolean includeVersion, boolean includeClassifier) {
 		return getFileName(a.getArtifactId(), getArtifactVersion(a, processSnapshotVersions), a.getClassifier(), a.getType(), includeVersion,
 				includeClassifier);
@@ -403,213 +395,185 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 
 		return layout;
 	}
-
-	protected Path processVersionsInExtensionArchives(Artifact artifact, Path extensionZip) throws IOException {
-		if(processExtensionVersions && "extension-archive".equals(artifact.getClassifier()) && "zip".equals(artifact.getType())) {
-			Path tmpDir = Files.createTempDirectory("ext");
-			try {
-				unzip(extensionZip, tmpDir);
-				AtomicInteger counter = new AtomicInteger();
-				Files.find(tmpDir, Integer.MAX_VALUE, (filePath, fileAttr) -> fileAttr.isRegularFile()
-						&& filePath.getFileName().toString().toLowerCase().endsWith(".jar")).forEach((file) -> {
-							processVersionsInJarFile(counter, file);
-						});
-				
-				/* Re-pack the extension zip */
-				if(counter.get() > 0) {
-					zip(extensionZip, tmpDir);
-				}
-				else
-					getLog().debug(String.format("No jars processed in %s", extensionZip));
+	
+	protected void runIfNeedVersionProcessedArchive(Artifact artifact, Path target, IORunnable r, FileTime sourceTime) throws IOException {
+		if(copyOncePerRuntime) {
+			var other = lastVersionProcessed.get(artifact);
+			if(other == null) {
+				lastVersionProcessed.put(artifact, target);
+				r.run();
 			}
-			finally {
-				FileUtils.deleteDirectory(tmpDir.toFile());
+			else {
+				getLog().debug(String.format("Skipping processing of %s, we have already processed it once this runtime, just linking from %s to %s.", artifact, other, target));
+				Files.deleteIfExists(target);
+				Files.createSymbolicLink(target, other);
 			}
+    		Files.setLastModifiedTime(target, FileTime.from(sourceTime.toInstant()));
 		}
-		return extensionZip;
+		else {
+			r.run();
+    		Files.setLastModifiedTime(target, FileTime.from(sourceTime.toInstant()));
+		}
+	}
+	
+	protected void processVersionsInExtensionArchives(Artifact artifact, InputStream in, OutputStream out) throws IOException {
+		if(processExtensionVersions && "extension-archive".equals(artifact.getClassifier()) && "zip".equals(artifact.getType())) {
+			AtomicInteger counter = new AtomicInteger();
+			
+			ZipInputStream zis = new ZipInputStream(in);
+			ZipOutputStream zos = new ZipOutputStream(out);
+			ZipEntry zipEntry = zis.getNextEntry();
+			while (zipEntry != null) {
+				getLog().debug(String.format("  Zip entry: %s (dir: %s)", zipEntry.getName(), zipEntry.isDirectory()));
+				if(zipEntry.isDirectory()) {
+	                zos.putNextEntry(new ZipEntry(zipEntry.getName()));
+	                zos.closeEntry();
+				}
+				else if(zipEntry.getName().toLowerCase().endsWith(".jar")) {
+	                zos.putNextEntry(new ZipEntry(zipEntry.getName()));
+					processVersionsInJarFile(artifact, counter, zis, zos);
+	                zos.closeEntry();
+				}
+				else {
+	                zos.putNextEntry(new ZipEntry(zipEntry.getName()));
+					zis.transferTo(zos);
+	                zos.closeEntry();
+					getLog().debug(String.format("    Copied %s.", zipEntry.getName()));
+				}
+
+				zipEntry = zis.getNextEntry();
+			}
+			zis.closeEntry();
+			
+			/* Re-pack the extension zip */
+			if(counter.get() == 0)
+				getLog().debug(String.format("No jars processed in %s", artifact));
+		}
 	}
 
-	public void processVersionsInJarFile(AtomicInteger counter, Path file) {
+	public void processVersionsInJarFile(Artifact artifact, AtomicInteger counter, InputStream in, OutputStream out) {
 		/* We have something that is possibly an extension jar. 
 		 * So we peek inside, and see if there is an extension.def
 		 * resource. 
 		 */
-		getLog().debug(String.format("Checking if %s is an extension.", file));
+		getLog().debug(String.format("Checking if %s is an extension.", artifact));
 		try {
-			Path jarTmpDir = Files.createTempDirectory("jar");
-			try {
-				unzip(file, jarTmpDir);
-				
-				/* Is there a manifest? */
-				Path jarManifest = jarTmpDir.resolve("META-INF").resolve("MANIFEST.MF");
-				if(Files.exists(jarManifest)) {
+			String jarExtensionVersion = null;
+			String newJarExtensionVersion = null;
+        	ZipOutputStream zos = new ZipOutputStream(out);
+		 	ZipInputStream zis = new ZipInputStream(in);
+			ZipEntry zipEntry = zis.getNextEntry();
+			while (zipEntry != null) {
+				getLog().debug(String.format("  Zip entry: %s (dir: %s)", zipEntry.getName(), zipEntry.isDirectory()));
+				if(zipEntry.isDirectory()) {
+	                zos.putNextEntry(new ZipEntry(zipEntry.getName()));
+	                zos.closeEntry();
+				}
+				else if(zipEntry.getName().equals("META-INF/MANIFEST.MF")) {
 					/* There is a MANIFEST.MF, is it a hypersocket extension? */
-					Manifest mf;
-					try(InputStream in = Files.newInputStream(jarManifest)) {
-						mf = new Manifest(in);
+					Manifest mf = new Manifest(zis);
+					jarExtensionVersion = mf.getMainAttributes().getValue("X-Extension-Version");
+					if(jarExtensionVersion != null) {
+						
+						/* This is an extension, inject the build number */
+						newJarExtensionVersion = getVersion(true, jarExtensionVersion);
+						mf.getMainAttributes().putValue("X-Extension-Version", newJarExtensionVersion);
+						getLog().debug(String.format("    Adjusted version in %s from %s to %s.", zipEntry.getName(), jarExtensionVersion, newJarExtensionVersion));
+						
 					}
-					String jarExtensionVersion = mf.getMainAttributes().getValue("X-Extension-Version");
-					if(jarExtensionVersion == null) {
-						/* This is not a hypersocket extension, skip */
-						getLog().debug(String.format("Not an extension, %s has no X-Extension-Version MANIFEST.MF entry.", file));
-						return;
-					}
-					
-					/* This is an extension, inject the build number */
-					String newJarExtensionVersion = getVersion(true, jarExtensionVersion);
-					mf.getMainAttributes().putValue("X-Extension-Version", newJarExtensionVersion);
-					getLog().info(String.format("Adjusted version in %s from %s to %s.", file, jarExtensionVersion, newJarExtensionVersion));
-					
 					/* Rewrite the manifest */
-					try(OutputStream out = Files.newOutputStream(jarManifest)) {
-						mf.write(out);
+	                zos.putNextEntry(new ZipEntry(zipEntry.getName()));
+	                mf.write(zos);
+	                zos.closeEntry();
+				}
+				else if(newJarExtensionVersion != null && zipEntry.getName().equals("plugin.properties")) {
+
+					/* Look for extension properties to update */
+					Properties pluginProperties = new Properties();
+					pluginProperties.load(zis);
+					pluginProperties.put("plugin.version", newJarExtensionVersion);
+					getLog().debug(String.format("    Adjusted version in %s from %s to %s.", zipEntry.getName(), jarExtensionVersion, newJarExtensionVersion));
+					
+	                zos.putNextEntry(new ZipEntry(zipEntry.getName()));
+					pluginProperties.store(zos, "Plugin Properties for " + artifact.getArtifactId());
+	                zos.closeEntry();
+				}
+				else if(newJarExtensionVersion != null && zipEntry.getName().equals("extension.def")) {
+
+					/* Look for extension def to update */
+					Properties extProperties = new Properties();
+					extProperties.load(zis);
+					extProperties.put("extension.version", newJarExtensionVersion);
+					getLog().debug(String.format("    Adjusted version in %s from %s to %s.", zipEntry.getName(), jarExtensionVersion, newJarExtensionVersion));
+					
+	                zos.putNextEntry(new ZipEntry(zipEntry.getName()));
+	                extProperties.store(zos, "Extension Properties for " + artifact.getArtifactId());
+	                zos.closeEntry();
+				}
+				else if(newJarExtensionVersion != null && zipEntry.getName().matches("META-INF/maven/.*/pom\\.xml")) {
+					DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();
+		    		try {
+			            DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();
+			            Document doc = docBuilder.parse (new FilterInputStream(zis) {
+							@Override
+							public void close() throws IOException {
+								// DocumentBuilder.parse() is dumb, it closes the stream passed it
+							}
+			            });
+			            doc.getDocumentElement().getElementsByTagName("version").item(0).setTextContent(newJarExtensionVersion);
+			            
+			            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+			            Transformer transformer = transformerFactory.newTransformer();
+			            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+			            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
+			            DOMSource source = new DOMSource(doc);
+		                zos.putNextEntry(new ZipEntry(zipEntry.getName()));
+						getLog().debug(String.format("    Adjusted version in %s from %s to %s.", zipEntry.getName(), jarExtensionVersion, newJarExtensionVersion));
+		            	StreamResult result = new StreamResult(zos);
+		            	transformer.transform(source, result);
+		                zos.closeEntry();
+		    		}
+					catch(Exception ioe) {
+						throw new IllegalStateException("Failed to rewrite pom.properties");
 					}
-					
-					/* Look for Maven metadata to update */
-					Path maven = jarTmpDir.resolve("META-INF").resolve("maven");
-					Files.find(maven, Integer.MAX_VALUE, (filePath, fileAttr) -> filePath.getFileName().toString().equals("pom.xml") || filePath.getFileName().toString().equals("pom.properties")).forEach((mavenFile) -> {
-						if(mavenFile.getFileName().toString().equals("pom.xml")) {
-				    		DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();
-				    		try {
-					            DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();
-					            Document doc;
-								try(InputStream docIn = Files.newInputStream(mavenFile)) {
-						            doc = docBuilder.parse (docIn);
-								}
-					            doc.getDocumentElement().getElementsByTagName("version").item(0).setTextContent(newJarExtensionVersion);
-					            
-					            TransformerFactory transformerFactory = TransformerFactory.newInstance();
-					            Transformer transformer = transformerFactory.newTransformer();
-					            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-					            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
-					            DOMSource source = new DOMSource(doc);
-					            try(Writer writer = Files.newBufferedWriter(mavenFile)) {
-					            	StreamResult result = new StreamResult(writer);
-					            	transformer.transform(source, result);
-					            }
-				    		}
-							catch(Exception ioe) {
-								throw new IllegalStateException("Failed to rewrite pom.properties");
-							}
-				            
-						}
-						else if(mavenFile.getFileName().toString().equals("pom.properties")) {
-							Properties properties = new Properties();
-							try(InputStream propertiesIn = Files.newInputStream(mavenFile)) {
-								properties.load(propertiesIn);
-							}
-							catch(IOException ioe) {
-								throw new IllegalStateException("Failed to rewrite pom.properties");
-							}
-							properties.put("version", newJarExtensionVersion);
-							try(OutputStream propertiesOut= Files.newOutputStream(mavenFile)) {
-								properties.store(propertiesOut, "Processed by logonbox-plugin-generator");
-							}
-							catch(IOException ioe) {
-								throw new IllegalStateException("Failed to rewrite pom.properties");
-							}
-						}
-					});
-					
-					/* Re-pack the jar, also using the new version number
-					 * in the filename */
-					Path newFile = file.getParent().resolve(file.getFileName().toString().replace(jarExtensionVersion, newJarExtensionVersion));
-					getLog().debug(String.format("New file is %s.", newFile));
-					zip(newFile, jarTmpDir);
-					
-					/* Delete the old file */
-					if(!newFile.equals(file)) {
-						Files.delete(file);
-					}
-					
-					
-					counter.incrementAndGet();
+				}
+				else if(newJarExtensionVersion != null && zipEntry.getName().matches("META-INF/maven/.*/pom\\.properties")) {
+					Properties properties = new Properties();
+					properties.load(zis);
+
+					getLog().debug(String.format("    Adjusted version in %s from %s to %s.", zipEntry.getName(), jarExtensionVersion, newJarExtensionVersion));							
+					properties.put("version", newJarExtensionVersion);
+	                zos.putNextEntry(new ZipEntry(zipEntry.getName()));
+					properties.store(zos, "Processed by logonbox-plugin-generator");
+	                zos.closeEntry();
 				}
 				else {
-					/* There is not, skip this one */
-					getLog().debug(String.format("Not an extension, %s has no MANIFEST.MF.", file));
-					return;
+	                zos.putNextEntry(new ZipEntry(zipEntry.getName()));
+					zis.transferTo(zos);
+	                zos.closeEntry();
+					getLog().debug(String.format("    Copied %s.", zipEntry.getName()));
 				}
+
+				zipEntry = zis.getNextEntry();
 			}
-			finally {
-				FileUtils.deleteDirectory(jarTmpDir.toFile());
-			}				
+			zis.closeEntry();
+	        
+	        if(newJarExtensionVersion == null) {
+				/* There is not, skip this one */
+				getLog().debug(String.format("Not an extension, %s has no MANIFEST.MF.", artifact));	
+	        }
+			return;
 		}
 		catch(IOException ioe) {
 			throw new IllegalStateException("Failed to process extension archive jars.", ioe);
 		}
 	}
-
+	
 	/**
 	 * @return {@link #skip}
 	 */
 	protected boolean isSkip() {
 		return skip;
-	}
-
-	
-	public void zip(Path zipFile, Path directoryToZip) throws IOException {
-		getLog().debug(String.format("Zipping %s from %s", zipFile, directoryToZip));
-        try(ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(zipFile))) {
-			Files.find(directoryToZip, Integer.MAX_VALUE, (filePath, fileAttr) -> true).forEach((file) -> {
-				Path relpath = directoryToZip.relativize(file);
-				try {
-					if(Files.isDirectory(file)) {
-		                zos.putNextEntry(new ZipEntry(relpath.toString() + "/"));
-		                zos.closeEntry();
-					}
-					else {
-						try(InputStream in = Files.newInputStream(file)) {
-							ZipEntry entry = new ZipEntry(relpath.toString());
-					        zos.putNextEntry(entry);
-					        byte[] bytes = new byte[1024];
-					        int length;
-					        while ((length = in.read(bytes)) >= 0) {
-					            zos.write(bytes, 0, length);
-					        }
-						}
-					}
-				}
-				catch(IOException ioe) {
-					throw new IllegalStateException("Failed to re-zip adjusted extension archive.");
-				}
-			});
-        }
-    }
-	
-	public void unzip(Path zip, Path destDir) throws IOException {
-		getLog().debug(String.format("Unzipping %s to %s", zip, destDir));
-		byte[] buffer = new byte[1024];
-		try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zip))) {
-			ZipEntry zipEntry = zis.getNextEntry();
-			while (zipEntry != null) {
-				Path newFile = newFile(destDir, zipEntry);
-				if(getLog().isDebugEnabled())
-					getLog().debug(String.format("  Entry: %s (%s)", zipEntry.getName(), zipEntry.isDirectory() ? "Dir" : "File"));
-				if (zipEntry.isDirectory()) {
-					if (!Files.isDirectory(newFile)) {
-						Files.createDirectories(newFile);
-					}
-				} else {
-					Path parent = newFile.getParent();
-					if (!Files.isDirectory(parent)) {
-						if(getLog().isDebugEnabled())
-							getLog().debug(String.format("  Need to create parent: %s (ex: %s dir: %s, file: %s)", parent, Files.exists(parent), Files.isDirectory(parent), Files.isRegularFile(parent)));  
-						Files.createDirectories(parent);
-					}
-
-					// write file content
-					OutputStream fos = Files.newOutputStream(newFile);
-					int len;
-					while ((len = zis.read(buffer)) > 0) {
-						fos.write(buffer, 0, len);
-					}
-					fos.close();
-				}
-				zipEntry = zis.getNextEntry();
-			}
-			zis.closeEntry();
-		}
 	}
 	
 	public static Path newFile(Path destinationDir, ZipEntry zipEntry) throws IOException {

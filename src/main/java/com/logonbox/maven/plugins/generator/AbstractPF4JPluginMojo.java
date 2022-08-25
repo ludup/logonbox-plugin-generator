@@ -242,9 +242,10 @@ public abstract class AbstractPF4JPluginMojo extends AbstractExtensionsMojo {
 	}
 	
 	protected Properties loadProperties(File dir) throws IOException {
+		getLog().info("Looking for plugin.properties ....");
 		Properties extProperties = new Properties();
 		Properties pluginProperties = new Properties();
-		File properties = new File(new File(new File(new File(dir, "src"), "main"), "plugin"), "plugin.properties");
+		File properties = new File(dir, "plugin.properties");
 		File extDefFile = new File(new File(new File(new File(dir, "src"), "main"), "resources"), "extension.def");
 		
 		if(properties.exists()) {
@@ -253,6 +254,8 @@ public abstract class AbstractPF4JPluginMojo extends AbstractExtensionsMojo {
 				pluginProperties.load(in);
 			}	
 		}
+		else
+			getLog().info("Found project plugin.properties file");
 		
 		if(extDefFile.exists()) {
 			getLog().info("Found legacy extension.def file");
@@ -271,7 +274,61 @@ public abstract class AbstractPF4JPluginMojo extends AbstractExtensionsMojo {
 				if(!depends.isEmpty())
 					pluginProperties.put("plugin.dependencies", String.join(", ", depends));
 			}
+			
+			if(extProperties.containsKey("extension.id") && !pluginProperties.contains("plugin.id")) {
+				pluginProperties.put("plugin.id", extProperties.get("extension.id"));
+			}
+			
+			if(extProperties.containsKey("extension.license") && !pluginProperties.contains("plugin.license")) {
+				pluginProperties.put("plugin.license", extProperties.get("extension.license"));
+			}
+			
+			if(extProperties.containsKey("extension.licenseUrl") && !pluginProperties.contains("x.plugin.licenseUrl")) {
+				pluginProperties.put("x.plugin.licenseUrl", extProperties.get("extension.licenseUrl"));
+			}
+			
+			if(extProperties.containsKey("extension.vendor") && !pluginProperties.contains("plugin.provider")) {
+				pluginProperties.put("plugin.provider", extProperties.get("extension.vendor"));
+			}
+			
+			if(extProperties.containsKey("extension.vendor") && !pluginProperties.contains("x.plugin.url")) {
+				pluginProperties.put("x.plugin.url", extProperties.get("extension.url"));
+			}
+			
+			if(extProperties.containsKey("extension.image") && !pluginProperties.contains("x.plugin.image")) {
+				pluginProperties.put("x.plugin.image", extProperties.get("extension.image"));
+			}
+			
+			if(extProperties.containsKey("extension.weight") && !pluginProperties.contains("x.plugin.weight")) {
+				pluginProperties.put("x.plugin.weight", extProperties.get("extension.weight"));
+			}
+			
+			if(extProperties.containsKey("extension.system") && !pluginProperties.contains("x.plugin.system")) {
+				pluginProperties.put("x.plugin.system", extProperties.get("extension.system"));
+			}
+			
+			if(extProperties.containsKey("extension.name") && !pluginProperties.contains("x.plugin.name")) {
+				pluginProperties.put("x.plugin.name", extProperties.get("extension.name"));
+			}
+			
+			if(extProperties.containsKey("extension.mandatory") && !pluginProperties.contains("x.plugin.mandatory")) {
+				pluginProperties.put("x.plugin.mandatory", extProperties.get("extension.mandatory"));
+			}
 		}
+		else
+			getLog().info("No legacy extension.def file");
+		
+		var defaultName = project.getName() == null ? project.getArtifactId() : project.getName();
+		if(defaultName.startsWith("Hypersocket - ")) {
+			defaultName = defaultName.substring(14);
+		}
+		else if(defaultName.startsWith("LogonBox - ")) {
+			defaultName = defaultName.substring(11);
+		}
+		else if(defaultName.startsWith("Nervepoint - ")) {
+			defaultName = defaultName.substring(13);
+		}
+		
 		if(!pluginProperties.containsKey("plugin.class"))
 			pluginProperties.put("plugin.class", "com.hypersocket.plugins.DefaultPlugin");
 		if(!pluginProperties.containsKey("plugin.id"))
@@ -281,11 +338,22 @@ public abstract class AbstractPF4JPluginMojo extends AbstractExtensionsMojo {
 		if(!pluginProperties.containsKey("plugin.requires"))
 			pluginProperties.put("plugin.requires", stripSnapshot(project.getVersion()));
 		if(!pluginProperties.containsKey("plugin.description"))
-			pluginProperties.put("plugin.description", project.getDescription() == null ? ( project.getName() == null ? project.getArtifactId() : project.getName() ) : project.getDescription());
+			pluginProperties.put("plugin.description", project.getDescription() == null ? defaultName : project.getDescription());
 		if(!pluginProperties.containsKey("plugin.provider"))
 			pluginProperties.put("plugin.provider", project.getOrganization() == null || project.getOrganization().getName() == null ? "LogonBox" :  project.getOrganization().getName());
 		if(!pluginProperties.containsKey("plugin.license"))
 			pluginProperties.put("plugin.license", project.getLicenses().isEmpty() ? "Commercial" : project.getLicenses().get(0).getName());
+
+		if(!pluginProperties.containsKey("x.plugin.name")) {
+			pluginProperties.put("x.plugin.name", defaultName);
+		}
+		if(!pluginProperties.containsKey("x.plugin.url"))
+			pluginProperties.put("x.plugin.url", project.getUrl() == null || project.getUrl().isEmpty() ? "https://www.logonbox.com" : project.getUrl());
+
+		getLog().info("Project properties are ...");
+		pluginProperties.forEach((k, v) -> {
+			getLog().info("  " + k + "=" + v);
+		});
 	
 		return pluginProperties;
 	}

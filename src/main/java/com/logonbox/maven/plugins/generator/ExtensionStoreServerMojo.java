@@ -1,5 +1,7 @@
 package com.logonbox.maven.plugins.generator;
 
+import static com.logonbox.maven.plugins.generator.Plugins.getBestProperty;
+
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -13,8 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 import javax.json.Json;
 import javax.json.JsonArrayBuilder;
@@ -22,8 +22,8 @@ import javax.json.JsonObjectBuilder;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.metadata.ArtifactMetadata;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -92,7 +92,7 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 
 	protected void onExecute() throws MojoExecutionException, MojoFailureException {
 		try {
-			
+
 			Set<Artifact> artifacts = project.getArtifacts();
 			String firstVersion = null;
 			for (Artifact artifact : artifacts) {
@@ -109,27 +109,23 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 					} catch (MojoFailureException | DependencyResolverException | ArtifactResolverException e) {
 						getLog().debug("Failed to process an artifact, assuming it's not an extension.", e);
 					}
-				}
-				else
+				} else
 					getLog().debug(artifact.getId() + " is not an extension");
 			}
-			
+
 			/* Calculate a phase name */
-			if(phaseName.equals("") || !phaseName.contains("_")) {
-				if(firstVersion == null) {
+			if (phaseName.equals("") || !phaseName.contains("_")) {
+				if (firstVersion == null) {
 					getLog().warn("No extensions being served, cannot determine a phase to use.");
-				}
-				else {
+				} else {
 					String[] parts = firstVersion.split("\\.");
-					if(phaseName.equals("")) {
+					if (phaseName.equals("")) {
 						actualPhaseName = "nightly" + parts[0] + "_" + parts[1] + "x";
-					}
-					else {
+					} else {
 						actualPhaseName += "_" + parts[0] + "_" + parts[1] + "x";
 					}
 				}
-			}
-			else {
+			} else {
 				actualPhaseName = phaseName;
 			}
 
@@ -138,7 +134,7 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 
 				@Override
 				public void info(String message) {
-					getLog().info(message);					
+					getLog().info(message);
 				}
 
 				@Override
@@ -148,12 +144,12 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 
 				@Override
 				public void error(String message, Throwable exception) {
-					getLog().error(message, exception);					
+					getLog().error(message, exception);
 				}
 
 				@Override
 				public void debug(String message) {
-					getLog().debug(message);					
+					getLog().debug(message);
 				}
 			});
 			server.addContent(new DynamicContentFactory() {
@@ -167,7 +163,8 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 						path = path.substring(0, idx);
 					}
 					getLog().debug(String.format("Request for: %s", path));
-					if (path.startsWith(appPath + "/api/store/private") || path.startsWith(appPath + "/api/store/phases")) {
+					if (path.startsWith(appPath + "/api/store/private")
+							|| path.startsWith(appPath + "/api/store/phases")) {
 						return handlePrivate();
 					} else if (path.startsWith(appPath + "/api/store/repos2/")) {
 						String[] parts = path.substring(appPath.length() + 18).split("/");
@@ -196,6 +193,7 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 			throws MojoExecutionException, DependencyResolverException, ArtifactResolverException, IOException {
 
 		Artifact artifact = result.getArtifact();
+		ArtifactMetadata am;
 
 		/* Is the artifact an extension? */
 		String version = getArtifactVersion(artifact);
@@ -228,35 +226,81 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 			Artifact artifact = extension.artifact;
 			String artifactVersion = getArtifactVersion(artifact);
 			String unprocessedArtifactVersion = artifact.getVersion();
-			getLog().debug(String.format("Comparing versions: %s and %s (%s)", version, artifactVersion, unprocessedArtifactVersion));
+			getLog().debug(String.format("Comparing versions: %s and %s (%s)", version, artifactVersion,
+					unprocessedArtifactVersion));
 //			if (version.equals(artifactVersion) || version.equals(unprocessedArtifactVersion)) {
-				File file = artifact.getFile();
-				resource.add("size", file.length());
-				resource.add("url", en.getKey());
-				resource.add("filename", FilenameUtils.getName(en.getKey()));
-				resource.add("repositoryDescription", description);
-				resource.add("modifiedDate", file.lastModified());
-				resource.add("version", artifactVersion);
-				resource.add("hash", extension.hash);
-				resource.add("extensionId", artifact.getArtifactId());
-				resource.add("state", "NOT_INSTALLED");
-				resource.add("target", extensionTarget.equals("") ? target : extensionTarget);
-				resource.add("mandatory", false);
-				resource.add("weight", 0);
-				resource.add("tab", tab);
-				Properties def = getExtensionDefinition(artifact);
-				resource.add("description",
-						def.containsKey("extension.description") ? def.getProperty("extension.description")
-								: artifact.getGroupId() + ":" + artifact.getArtifactId());
-				resource.add("extensionName", def.containsKey("extension.name") ? def.getProperty("extension.name")
-						: artifact.getArtifactId());
-				resource.add("dependsOn",
-						def.containsKey("extension.depends")
-								? Json.createArrayBuilder(
-										Arrays.asList(def.getProperty("extension.depends").split(",")))
-								: Json.createArrayBuilder());
 
-				resources.add(resource);
+			File file = artifact.getFile();
+			var pluginProperties = new Properties();
+			try {
+				pluginProperties.putAll(Plugins.getPluginProperties(file.toPath()));
+
+			} catch (Exception e) {
+			}
+			var extensionProperties = new Properties();
+			try {
+				Plugins.getExtensionProperties(file.toPath()).forEach((k, v) -> {
+					extensionProperties.putIfAbsent(k, v);
+				});
+			} catch (Exception e2) {
+			}
+			var mavenProperties = new Properties();
+			try {
+				Plugins.getDefaultMavenManifestProperties(file.toPath()).forEach((k, v) -> {
+					mavenProperties.putIfAbsent(k, v);
+				});
+			} catch (Exception e) {
+			}
+
+			var defaultProperties = new Properties();
+			defaultProperties.put("id", artifact.getArtifactId());
+
+			if(getLog().isDebugEnabled()) {
+				getLog().info("Properties from " + file + " are ");
+				pluginProperties.forEach((k, v) -> {
+					getLog().info("   " + k + " = " + v);
+				});
+				extensionProperties.forEach((k, v) -> {
+					getLog().info("   " + k + " = " + v);
+				});
+				mavenProperties.forEach((k, v) -> {
+					getLog().info("   " + k + " = " + v);
+				});
+				defaultProperties.forEach((k, v) -> {
+					getLog().info("   " + k + " = " + v);
+				});
+			}
+			
+			var plist = Arrays.asList(pluginProperties, extensionProperties, mavenProperties, defaultProperties);
+			var name = getBestProperty(artifact.getGroupId() + ":" + artifact.getArtifactId(), plist, "x.plugin.name", "extension.name", "name");
+			name = name.replaceFirst("^Hypersocket - ", "");
+			name = name.replaceFirst("^LogonBox - ", "");
+			name = name.replaceFirst("^SSHTools - ", "");
+			name = name.replaceFirst("^Nervepoint - ", "");
+
+			resource.add("size", file.length());
+			resource.add("url", en.getKey());
+			resource.add("filename", FilenameUtils.getName(en.getKey()));
+			resource.add("repositoryDescription", description);
+			resource.add("modifiedDate", file.lastModified());
+			resource.add("version", getBestProperty(artifactVersion, plist, "plugin.version", "extension.version", "version"));
+			resource.add("hash", extension.hash);
+			resource.add("extensionId",
+					getBestProperty(artifact.getArtifactId(), plist, "plugin.id", "extension.id", "artifactId"));
+			resource.add("state", "NOT_INSTALLED");
+			resource.add("target", extensionTarget.equals("") ? target : extensionTarget);
+			resource.add("mandatory", getBestProperty("false", plist, "x.plugin.mandatory", "extension.mandatory"));
+			resource.add("weight", 0);
+			resource.add("tab", tab);
+			resource.add("type", pluginProperties.isEmpty() ? "EXTENSION" : "PLUGIN");
+			resource.add("extensionName", name);
+			resource.add("description",
+					getBestProperty(name, plist, "plugin.description", "extension.description", "description"));
+			var dep = getBestProperty("", plist, "plugin.dependencies", "extension.depends");
+			resource.add("dependsOn", dep.equals("") ? Json.createArrayBuilder()
+					: Json.createArrayBuilder(Arrays.asList(dep.split(","))));
+
+			resources.add(resource);
 //			}
 
 		}
@@ -277,28 +321,5 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 				.add("publicPhase", true).add("name", actualPhaseName));
 
 		return resourcesResponse(resources);
-	}
-	
-	static Properties getExtensionDefinition(Artifact artifact) throws IOException {
-		Properties p = new Properties();
-		try (ZipInputStream zis = new ZipInputStream(new FileInputStream(artifact.getFile()))) {
-			ZipEntry zipEntry = zis.getNextEntry();
-			while (zipEntry != null) {
-				if(zipEntry.getName().endsWith("/extension.def")) {
-					p.load(zis);
-					break;
-				}
-				else if(zipEntry.getName().endsWith("/")) {
-					// skip
-				}
-				else {
-					// sink
-					IOUtils.skip(zis, Long.MAX_VALUE);
-				}
-				zipEntry = zis.getNextEntry();
-			}
-			zis.closeEntry();
-		}
-		return p;
 	}
 }

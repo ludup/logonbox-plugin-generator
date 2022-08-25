@@ -146,11 +146,23 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 			Path target = checkDir(output.toPath()).resolve(getFileName(artifact, includeVersion, includeClassifier));
 			if (processExtensionVersions && "extension-archive".equals(artifact.getClassifier())
 					&& "zip".equals(artifact.getType())) {
-				processVersionsInExtensionArchives(artifact,
-						copy(extensionZip, target, Files.getLastModifiedTime(extensionZip).toInstant()));
+				getLog().debug("Process versions in extension artifact " + artifact.getArtifactId() + " to " + target);
+				runIfNeedVersionProcessedArchive(artifact, target, () -> {
+					try(var in = Files.newInputStream(extensionZip)) {
+						try(var out = Files.newOutputStream(target)) {
+							processVersionsInExtensionArchives(artifact, in, out);
+						}
+					}
+				}, Files.getLastModifiedTime(extensionZip));
 			} else if (processExtensionVersions && "jar".equals(artifact.getType())) {
-				processVersionsInJarFile(new AtomicInteger(),
-						copy(extensionZip, target, Files.getLastModifiedTime(extensionZip).toInstant()));
+				getLog().debug("Process versions in jar artifact " + artifact.getArtifactId() + " to " + target);
+				runIfNeedVersionProcessedArchive(artifact, target, () -> {
+					try(var in = Files.newInputStream(extensionZip)) {
+						try(var out = Files.newOutputStream(target)) {
+							processVersionsInJarFile(artifact, new AtomicInteger(), in, out);
+						}
+					}
+				}, Files.getLastModifiedTime(extensionZip));
 			}
 		} catch (IOException e) {
 			throw new MojoExecutionException("Failed to copy extension to staging area.", e);
