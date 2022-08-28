@@ -85,7 +85,7 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 			String fileName = getFileName(a.getArtifactId(), getArtifactVersion(a, true), a.getClassifier(), a.getType(), includeVersion,
 					false);
 			Path target = checkDir(artifactPath).resolve(fileName);
-			getLog().debug("Process versions in artifact " + a.getArtifactId() + " to " + target);
+			getLog().debug("Process versions in artifact " + a.getArtifactId() + " from " + a.getFile() + " to " + target);
 			runIfNeedVersionProcessedArchive(a, target, () -> {
 				try(var in = new ZipInputStream(Files.newInputStream(extensionZip)); 
 					var out = new ZipOutputStream(Files.newOutputStream(target))) {

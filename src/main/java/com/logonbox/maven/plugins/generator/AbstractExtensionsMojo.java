@@ -441,7 +441,9 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 						public void close() throws IOException {
 						}
 					}) {
-						processVersionsInJarFile(artifact, counter, zis, zos);
+						getLog().debug("    Process versions in inner jar artifact of " + artifact.getArtifactId() + " from " + zipEntry.getName());
+						processVersionsInJarFile(artifact, counter, in, out);
+						getLog().debug("    Processed versions in inner jar artifact of " + artifact.getArtifactId() + " from " + zipEntry.getName());
 					}
 					zos.closeEntry();
 				} else {
@@ -468,13 +470,12 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 		 * We have something that is possibly an extension jar. So we peek inside, and
 		 * see if there is an extension.def resource.
 		 */
-		getLog().debug(String.format("Checking if %s is an extension.", artifact));
 		try {
 			String jarExtensionVersion = null;
 			String newJarExtensionVersion = null;
 			ZipEntry zipEntry = zis.getNextEntry();
 			while (zipEntry != null) {
-				getLog().debug(String.format("  Zip entry: %s (dir: %s)", zipEntry.getName(), zipEntry.isDirectory()));
+				getLog().debug(String.format("  Jar entry: %s (dir: %s)", zipEntry.getName(), zipEntry.isDirectory()));
 				if (zipEntry.isDirectory()) {
 					zos.putNextEntry(new ZipEntry(zipEntry.getName()));
 					zos.closeEntry();

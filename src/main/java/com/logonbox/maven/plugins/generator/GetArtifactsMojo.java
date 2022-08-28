@@ -148,7 +148,7 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 			Path target = checkDir(output.toPath()).resolve(getFileName(artifact, includeVersion, includeClassifier));
 			if (processExtensionVersions && "extension-archive".equals(artifact.getClassifier())
 					&& "zip".equals(artifact.getType())) {
-				getLog().debug("Process versions in extension artifact " + artifact.getArtifactId() + " to " + target);
+				getLog().debug("Process versions in extension artifact " + artifact.getArtifactId() + " to " + target + " from " + artifact.getFile());
 				runIfNeedVersionProcessedArchive(artifact, target, () -> {
 					try(var in = new ZipInputStream(Files.newInputStream(extensionZip)); 
 						var out = new ZipOutputStream(Files.newOutputStream(target))) {
