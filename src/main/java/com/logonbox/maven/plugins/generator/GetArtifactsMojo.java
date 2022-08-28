@@ -156,13 +156,19 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 					}
 				}, Files.getLastModifiedTime(extensionZip));
 			} else if (processExtensionVersions && "jar".equals(artifact.getType())) {
-				getLog().debug("Process versions in jar artifact " + artifact.getArtifactId() + " to " + target);
-				runIfNeedVersionProcessedArchive(artifact, target, () -> {
-					try(var in = new ZipInputStream(Files.newInputStream(extensionZip)); 
-						var out = new ZipOutputStream(Files.newOutputStream(target))) {
-						processVersionsInJarFile(artifact, new AtomicInteger(), in, out);
-					}
-				}, Files.getLastModifiedTime(extensionZip));
+				if(isPotentialExtensions(artifact.getGroupId() + "-")) {
+					getLog().debug("Process versions in jar artifact " + artifact.getArtifactId() + " to " + target);
+					runIfNeedVersionProcessedArchive(artifact, target, () -> {
+						try(var in = new ZipInputStream(Files.newInputStream(extensionZip)); 
+							var out = new ZipOutputStream(Files.newOutputStream(target))) {
+							processVersionsInJarFile(artifact, new AtomicInteger(), in, out);
+						}
+					}, Files.getLastModifiedTime(extensionZip));
+				}
+				else {
+					getLog().debug("Copying jar artifact " + artifact.getArtifactId() + " to " + target);
+					Files.copy(extensionZip, target);
+				}
 			}
 		} catch (IOException e) {
 			throw new MojoExecutionException("Failed to copy extension to staging area.", e);

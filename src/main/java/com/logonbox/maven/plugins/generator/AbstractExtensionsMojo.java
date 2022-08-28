@@ -430,7 +430,7 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 				if (zipEntry.isDirectory()) {
 					zos.putNextEntry(new ZipEntry(zipEntry.getName()));
 					zos.closeEntry();
-				} else if (zipEntry.getName().toLowerCase().endsWith(".jar")) {
+				} else if (zipEntry.getName().toLowerCase().endsWith(".jar") && isPotentialExtensions(zipEntry.getName()) ) {
 					zos.putNextEntry(new ZipEntry(zipEntry.getName()));
 					try (var in = new ZipInputStream(new FilterInputStream(zis) {
 						@Override
@@ -462,6 +462,16 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 			if (counter.get() == 0)
 				getLog().debug(String.format("No jars processed in %s", artifact));
 		}
+	}
+
+	protected boolean isPotentialExtensions(String name) {
+		if(name.startsWith("com.logonbox-") ||
+		   name.startsWith("com.hypersocket-") ||
+		   name.startsWith("com.sshtools-") ||
+		   name.startsWith("com.nervepoint-"))
+			return true;
+		else
+			return false;
 	}
 
 	public void processVersionsInJarFile(Artifact artifact, AtomicInteger counter, ZipInputStream zis,
