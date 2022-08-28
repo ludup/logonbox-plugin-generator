@@ -96,7 +96,6 @@ public class ProjectExtensionsMojo extends AbstractExtensionsMojo {
 		} catch (IOException e) {
 			throw new MojoExecutionException("Failed to copy extension to staging area.", e);
 		}
-
 	}
 
 	@Override

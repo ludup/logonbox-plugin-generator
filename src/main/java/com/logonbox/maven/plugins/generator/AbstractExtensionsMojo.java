@@ -2,6 +2,7 @@ package com.logonbox.maven.plugins.generator;
 
 import java.io.File;
 import java.io.FilterInputStream;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -431,16 +432,15 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 					zos.closeEntry();
 				} else if (zipEntry.getName().toLowerCase().endsWith(".jar")) {
 					zos.putNextEntry(new ZipEntry(zipEntry.getName()));
-					try (var in = new ZipInputStream(zis) {
+					try (var in = new ZipInputStream(new FilterInputStream(zis) {
 						@Override
 						public void close() throws IOException {
 						}
-
-					}; var out = new ZipOutputStream(zos) {
+					}) ; var out = new ZipOutputStream(new FilterOutputStream(zos) {
 						@Override
 						public void close() throws IOException {
 						}
-					}) {
+					}) ) {
 						getLog().debug("    Process versions in inner jar artifact of " + artifact.getArtifactId() + " from " + zipEntry.getName());
 						processVersionsInJarFile(artifact, counter, in, out);
 						getLog().debug("    Processed versions in inner jar artifact of " + artifact.getArtifactId() + " from " + zipEntry.getName());
