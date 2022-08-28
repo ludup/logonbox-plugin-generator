@@ -58,6 +58,8 @@ import org.apache.maven.shared.transfer.dependencies.resolve.DependencyResolverE
 import org.codehaus.plexus.util.StringUtils;
 import org.w3c.dom.Document;
 
+import com.sshtools.common.util.FileUtils;
+
 import edu.emory.mathcs.backport.java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -430,7 +432,7 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 				if (zipEntry.isDirectory()) {
 					zos.putNextEntry(new ZipEntry(zipEntry.getName()));
 					zos.closeEntry();
-				} else if (zipEntry.getName().toLowerCase().endsWith(".jar") && isPotentialExtensions(zipEntry.getName()) ) {
+				} else if (zipEntry.getName().toLowerCase().endsWith(".jar") && isPotentialExtensions(FileUtils.getFilename(zipEntry.getName())) ) {
 					zos.putNextEntry(new ZipEntry(zipEntry.getName()));
 					try (var in = new ZipInputStream(new FilterInputStream(zis) {
 						@Override
