@@ -369,12 +369,13 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 			}
 			zip.closeEntry();
 
-			getLog().info("Adding project artifact " + project.getArtifact().getFile().getName());
+			var art = project.getArtifact();
+			getLog().info("Adding project artifact " + art.getFile().getName());
 
-			e = new ZipEntry(project.getArtifactId() + "/" + project.getArtifact().getGroupId() + "-" + project.getArtifact().getArtifactId() + "." + project.getArtifact().getType());
+			e = new ZipEntry(project.getArtifactId() + "/" + getOutName(art));
 			zip.putNextEntry(e);
 
-			try (FileInputStream fin = new FileInputStream(project.getArtifact().getFile())) {
+			try (FileInputStream fin = new FileInputStream(art.getFile())) {
 				IOUtil.copy(fin, zip);
 			}
 
@@ -414,7 +415,7 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 						}
 
 						resolvedFile = artifactMap.get(artifactKey);
-						outName = a.getGroupId() + "-" + a.getArtifactId()  + "." + a.getType();
+						outName = getOutName(a);
 					}
 				}
 				
@@ -491,6 +492,13 @@ public class GeneratePluginMojo extends AbstractExtensionsMojo {
 				}
 			}
 		}
+	}
+
+	private String getOutName(Artifact art) {
+		if(art.getClassifier() == null || art.getClassifier().length() == 0)
+			return art.getGroupId() + "-" + art.getArtifactId() + "." + art.getType();
+		else
+			return art.getGroupId() + "-" + art.getArtifactId() + "-" + art.getClassifier() + "." + art.getType();
 	}
 
 	private List<String> getAppendFolderMap(Map<String, List<String>> appendFolderMap, Artifact a) {
