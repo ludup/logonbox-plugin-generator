@@ -3,7 +3,6 @@ package com.logonbox.maven.plugins.generator;
 import java.io.File;
 import java.io.IOException;
 
-import org.apache.maven.plugin.logging.SystemStreamLog;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
@@ -45,20 +44,6 @@ public class UploadDeb extends AbstractSSHUploadMojo {
 				sftp.put(file, sftp.getDefaultPath()  + "/" + repository + "/" + codename + "/" + file.getName());
 			}
 		}
-	}
-	
-	public static void main(String[] args) throws Exception {
-		System.setProperty("sshapi.logLevel", "DEBUG");
-		UploadDeb deb = new UploadDeb();
-		deb.username = "jenkins";
-		deb.password = "jenkins";
-		deb.host = "packager.hypersocket.io";
-		deb.port = 4022;
-		deb.setLog(new SystemStreamLog());
-		deb.repository = "hypersocketdebiantesting";
-		deb.codename= "umbra";
-		deb.source = new File("/home/tanktarta/Documents/Git/HS-2.4/hypersocket.install4j/install4j-logonbox-vpn-client/target/media");
-		deb.onExecute();
 	}
 
 }
