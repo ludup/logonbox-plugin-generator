@@ -2,7 +2,6 @@ package com.logonbox.maven.plugins.generator;
 
 import static com.logonbox.maven.plugins.generator.Plugins.getBestProperty;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -11,7 +10,6 @@ import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -23,7 +21,6 @@ import javax.json.JsonObjectBuilder;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.maven.artifact.Artifact;
-import org.apache.maven.artifact.metadata.ArtifactMetadata;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -35,10 +32,9 @@ import org.apache.maven.shared.transfer.artifact.resolve.ArtifactResult;
 import org.apache.maven.shared.transfer.dependencies.resolve.DependencyResolverException;
 import org.sonatype.inject.Description;
 
-import com.logonbox.maven.plugins.generator.MiniHttpServer.DynamicContent;
-import com.logonbox.maven.plugins.generator.MiniHttpServer.DynamicContentFactory;
-import com.logonbox.maven.plugins.generator.MiniHttpServer.Log;
-import com.logonbox.maven.plugins.generator.MiniHttpServer.Method;
+import com.sshtools.uhttpd.UHTTPD;
+import com.sshtools.uhttpd.UHTTPD.RootContext;
+import com.sshtools.uhttpd.UHTTPD.Transaction;
 
 /**
  * Start a mini HTTP server that acts as an extension store, allowing local
@@ -86,7 +82,7 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 	@Parameter(defaultValue = "", property = "extension-store.phase")
 	private String phaseName = "";
 
-	private MiniHttpServer server;
+	private RootContext server;
 	private Map<String, Extension> map = new HashMap<>();
 	private String actualPhaseName;
 
@@ -129,57 +125,23 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 				actualPhaseName = phaseName;
 			}
 
-			server = new MiniHttpServer(port, -1, null);
-			MiniHttpServer.setLOG(new Log() {
-
-				@Override
-				public void info(String message) {
-					getLog().info(message);
-				}
-
-				@Override
-				public void error(String message) {
-					getLog().error(message);
-				}
-
-				@Override
-				public void error(String message, Throwable exception) {
-					getLog().error(message, exception);
-				}
-
-				@Override
-				public void debug(String message) {
-					getLog().debug(message);
-				}
-			});
-			server.addContent(new DynamicContentFactory() {
-				@Override
-				public DynamicContent get(Method method, String path, Map<String, List<String>> headers, InputStream in)
-						throws IOException {
-					String query = null;
-					int idx = path.indexOf('?');
-					if (idx != -1) {
-						query = path.substring(idx + 1);
-						path = path.substring(0, idx);
-					}
-					getLog().debug(String.format("Request for: %s", path));
-					if (path.startsWith(appPath + "/api/store/private")
-							|| path.startsWith(appPath + "/api/store/phases")) {
-						return handlePrivate();
-					} else if (path.startsWith(appPath + "/api/store/repos2/")) {
-						String[] parts = path.substring(appPath.length() + 18).split("/");
-						return store(parts[0], parts[3].split(",")[0]);
-					} else if (map.containsKey(path)) {
-						File file = map.get(path).artifact.getFile();
-						return new DynamicContent("application/zip", new FileInputStream(file));
-					} else {
-						throw new FileNotFoundException(
-								"This extension store only serves the version of the project it is run from, "
-										+ project.getVersion() + ".");
-					}
-
-				}
-			});
+			server = UHTTPD.server().
+					withHttp(port).
+					withoutHttps().
+					get(".*/api/store/private", this::handlePrivate).
+					get(".*/api/store/phases", this::handlePrivate).
+					get(".*/api/store/repos2/.*", this::store).
+					get(".*", tx -> {
+						if (map.containsKey(tx.uri())) {
+							tx.response("application/zip", map.get(tx.uri()).artifact.getFile());
+						} else {
+							throw new FileNotFoundException(
+									"This extension store only serves the version of the project it is run from, "
+											+ project.getVersion() + ".");
+						}
+					}).
+					build();
+			
 			getLog().info("Starting extension store server, press Ctrl+C to stop.");
 			getLog().info("Service phase: " + actualPhaseName);
 			server.run();
@@ -193,7 +155,6 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 			throws MojoExecutionException, DependencyResolverException, ArtifactResolverException, IOException {
 
 		Artifact artifact = result.getArtifact();
-		ArtifactMetadata am;
 
 		/* Is the artifact an extension? */
 		String version = getArtifactVersion(artifact);
@@ -213,10 +174,12 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 		return true;
 	}
 
-	DynamicContent store(String version, String target) throws IOException {
-		// private String filename;
-		// private String repository;
-		// private String featureGroup;
+	void store(Transaction tx) throws IOException {
+
+		var parts = tx.uri().substring(appPath.length() + 18).split("/");
+		var version = parts[0];
+		var target = parts[3].split(",")[0];
+		
 
 		getLog().debug(String.format("Getting version: %s", version));
 		JsonArrayBuilder resources = Json.createArrayBuilder();
@@ -306,20 +269,16 @@ public class ExtensionStoreServerMojo extends AbstractExtensionsMojo {
 		}
 
 		/* Resource response */
-		return resourcesResponse(resources);
+		tx.response("text/json", resourcesResponse(resources));
 	}
 
-	DynamicContent resourcesResponse(JsonArrayBuilder resources) throws UnsupportedEncodingException {
-		String json = Json.createObjectBuilder().add("success", true).add("confirmation", false).add("message", "")
-				.add("properties", Json.createObjectBuilder()).add("resources", resources).build().toString();
-		return new DynamicContent("text/json", new ByteArrayInputStream(json.getBytes("UTF-8")));
+	Object resourcesResponse(JsonArrayBuilder resources) throws UnsupportedEncodingException {
+		return Json.createObjectBuilder().add("success", true).add("confirmation", false).add("message", "")
+				.add("properties", Json.createObjectBuilder()).add("resources", resources).build();
 	}
 
-	DynamicContent handlePrivate() throws UnsupportedEncodingException {
-		JsonArrayBuilder resources = Json.createArrayBuilder();
-		resources.add(Json.createObjectBuilder().add("version", getArtifactVersion(project.getArtifact()))
-				.add("publicPhase", true).add("name", actualPhaseName));
-
-		return resourcesResponse(resources);
+	void handlePrivate(Transaction tx) throws IOException {
+		tx.response("text/json", resourcesResponse(Json.createArrayBuilder().add(Json.createObjectBuilder().add("version", getArtifactVersion(project.getArtifact()))
+				.add("publicPhase", true).add("name", actualPhaseName))));
 	}
 }

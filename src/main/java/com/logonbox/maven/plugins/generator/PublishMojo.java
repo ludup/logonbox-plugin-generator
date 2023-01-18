@@ -22,7 +22,7 @@ import org.sonatype.inject.Description;
 @Description("Public extension version to update server")
 public class PublishMojo extends AbstractBaseExtensionsMojo {
 
-	@Parameter(property = "s3upload.updateServerURL", required = true, defaultValue = "https://updates2.hypersocket.com/app/api/webhooks/publish/generate[[majorMinorTag]]?version=[[artifactVersion]]")
+	@Parameter(property = "s3upload.updateServerURL", required = true, defaultValue = "https://updates.logonbox.com/app/api/webhooks/publish/generate[[majorMinorTag]]?version=[[artifactVersion]]")
 	private String updateServerURL;
 
 	@Parameter(required = true, readonly = true, property = "project")
