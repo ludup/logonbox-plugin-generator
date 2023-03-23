@@ -234,12 +234,12 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 	protected void doCoordinate() throws MojoFailureException, MojoExecutionException, IllegalArgumentException,
 			DependencyResolverException, ArtifactResolverException {
 
-//		ArtifactRepositoryPolicy always = new ArtifactRepositoryPolicy(true,
-//				updatePolicy == null ? ArtifactRepositoryPolicy.UPDATE_POLICY_INTERVAL : updatePolicy, 
-//				checksumPolicy == null ? ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE : checksumPolicy );
 		ArtifactRepositoryPolicy always = new ArtifactRepositoryPolicy(true,
-				updatePolicy == null ? ArtifactRepositoryPolicy.UPDATE_POLICY_NEVER : updatePolicy,
-				checksumPolicy == null ? ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE : checksumPolicy);
+				updatePolicy == null ? ArtifactRepositoryPolicy.UPDATE_POLICY_INTERVAL : updatePolicy, 
+				checksumPolicy == null ? ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE : checksumPolicy );
+//		ArtifactRepositoryPolicy always = new ArtifactRepositoryPolicy(true,
+//				updatePolicy == null ? ArtifactRepositoryPolicy.UPDATE_POLICY_NEVER : updatePolicy,
+//				checksumPolicy == null ? ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE : checksumPolicy);
 		List<ArtifactRepository> repoList = new ArrayList<>();
 
 		if (pomRemoteRepositories != null && useRemoteRepositories) {
