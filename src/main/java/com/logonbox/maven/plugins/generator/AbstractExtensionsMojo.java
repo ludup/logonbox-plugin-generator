@@ -235,7 +235,7 @@ public abstract class AbstractExtensionsMojo extends AbstractBaseExtensionsMojo 
 			DependencyResolverException, ArtifactResolverException {
 
 		ArtifactRepositoryPolicy always = new ArtifactRepositoryPolicy(true,
-				updatePolicy == null ? ArtifactRepositoryPolicy.UPDATE_POLICY_INTERVAL : updatePolicy, 
+				updatePolicy == null ? ArtifactRepositoryPolicy.UPDATE_POLICY_INTERVAL + ":60" : updatePolicy, 
 				checksumPolicy == null ? ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE : checksumPolicy );
 //		ArtifactRepositoryPolicy always = new ArtifactRepositoryPolicy(true,
 //				updatePolicy == null ? ArtifactRepositoryPolicy.UPDATE_POLICY_NEVER : updatePolicy,
