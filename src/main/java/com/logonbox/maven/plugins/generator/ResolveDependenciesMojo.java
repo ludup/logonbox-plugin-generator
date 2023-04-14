@@ -69,7 +69,7 @@ public class ResolveDependenciesMojo extends AbstractBaseExtensionsMojo {
 				Map<String, String> versionMap = new HashMap<String, String>();
 				Map<String, File> artifactMap = new HashMap<String, File>();
 
-				getLog().info("Generating dependencies map");
+				getLog().info("Generating dependencies map to " + outputFile);
 
 				Set<Artifact> artifacts = project.getArtifacts();
 				for (Artifact a : artifacts) {
@@ -81,7 +81,7 @@ public class ResolveDependenciesMojo extends AbstractBaseExtensionsMojo {
 						continue;
 					}
 
-					getLog().info("Dependency " + key + " version=" + a.getBaseVersion() + " scope=" + a.getScope()
+					getLog().debug("Dependency " + key + " version=" + a.getBaseVersion() + " scope=" + a.getScope()
 							+ " type=" + a.getType() + " url=" + a.getDownloadUrl() + " file="
 							+ a.getFile().getAbsolutePath());
 
