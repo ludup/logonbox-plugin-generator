@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipInputStream;
@@ -167,7 +168,7 @@ public class GetArtifactsMojo extends AbstractExtensionsMojo {
 				}
 				else {
 					getLog().debug("Copying jar artifact " + artifact.getArtifactId() + " to " + target);
-					Files.copy(extensionZip, target);
+					Files.copy(extensionZip, target, StandardCopyOption.REPLACE_EXISTING);
 				}
 			}
 		} catch (IOException e) {
